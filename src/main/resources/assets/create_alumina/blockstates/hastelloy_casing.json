@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "create_alumina:block/hastelloy_casing"
+    }
+  }
+}

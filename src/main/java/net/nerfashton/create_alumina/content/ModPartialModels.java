@@ -13,6 +13,8 @@ public class ModPartialModels {
     public static final CTSpriteShiftEntry STAINLESS_STEEL_CASING = omni("stainless_steel_casing");
     public static final CTSpriteShiftEntry HASTELLOY_CASING = omni("hastelloy_casing");
 
+    public static final PartialModel GAS_BURNER = PartialModel.of(ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "block/gas_burner"));
+
     public static CTSpriteShiftEntry omni(String name) {
         return getCT(AllCTTypes.OMNIDIRECTIONAL,
                 ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "block/" + name),

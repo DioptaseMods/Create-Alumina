@@ -10,8 +10,10 @@ import net.createmod.catnip.lang.FontHelper;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CreativeModeTab;
 import net.nerfashton.create_alumina.content.block.ModBlocks;
+import net.nerfashton.create_alumina.content.block.entity.ModBlockEntities;
 import net.nerfashton.create_alumina.content.block.entity.ModBlockEntityTypes;
 import net.nerfashton.create_alumina.content.item.ModCreativeTabs;
+import net.nerfashton.create_alumina.content.item.ModItems;
 import net.nerfashton.create_alumina.core.CreateAluminaRegistrate;
 import org.slf4j.Logger;
 
@@ -46,9 +48,11 @@ public class CreateAlumina {
         REGISTRATE.registerEventListeners(modEventBus);
 
         ModBlocks.init();
-        //ModBlockEntityTypes.init();
+        ModBlockEntityTypes.init();
+        ModBlockEntities.init();
+        ModItems.init();
 
-        // Register our mod's ModConfigSpec so that FML can create and load the config file for us
+        //Config Registration
         //modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 

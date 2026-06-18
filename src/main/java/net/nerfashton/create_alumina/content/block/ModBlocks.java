@@ -18,15 +18,15 @@ import static net.nerfashton.create_alumina.CreateAlumina.REGISTRATE;
 
 public class ModBlocks {
 
-    /*public static final BlockEntry<GasBurnerBlock> GAS_BURNER =
+    public static final BlockEntry<GasBurnerBlock> GAS_BURNER =
             REGISTRATE.block("gas_burner", GasBurnerBlock::new)
                     .properties(p -> p.mapColor(MapColor.COLOR_BLACK)
                             .lightLevel(GasBurnerBlock::getLight))
                     .addLayer(() -> RenderType::cutoutMipped)
                     .loot((lt, block) -> lt.add(block, GasBurnerBlock.buildLootTable()))
-                    .blockstate((c, p) -> p.simpleBlock(c.getEntry(), AssetLookup.partialBaseModel(c, p)))
-                    .item().transform(customItemModel("_", "block"))
-                    .register();*/
+                    //.blockstate((ctx, prov) -> prov.simpleBlock(ctx.getEntry(), AssetLookup.partialBaseModel(ctx, prov)))
+                    .item().transform(customItemModel())
+                    .register();
     public static final BlockEntry<CasingBlock> STAINLESS_STEEL_CASING = REGISTRATE.block("stainless_steel_casing", CasingBlock::new)
             .blockstate((ctx, prov) -> prov.simpleBlock(ctx.getEntry()))
             .initialProperties(SharedProperties::softMetal)

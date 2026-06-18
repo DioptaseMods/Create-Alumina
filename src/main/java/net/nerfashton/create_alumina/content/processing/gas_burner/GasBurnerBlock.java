@@ -15,8 +15,11 @@ import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.storage.loot.LootPool;
 import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
 import net.minecraft.world.level.storage.loot.predicates.ExplosionCondition;
 import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -24,6 +27,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nerfashton.create_alumina.content.block.ModBlocks;
 import net.nerfashton.create_alumina.content.block.entity.ModBlockEntityTypes;
 import org.jetbrains.annotations.Nullable;
+import org.patryk3211.powergrid.electricity.basinheater.BasinHeaterBlock;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
@@ -35,15 +39,21 @@ public class GasBurnerBlock extends HorizontalDirectionalBlock implements IBE<Ga
     public static final MapCodec<GasBurnerBlock> CODEC = simpleCodec(GasBurnerBlock::new);
     public static final VoxelShape SHAPE = Block.box(0,0,0,16,13,16);
 
+    public static final EnumProperty<BlazeBurnerBlock.HeatLevel> HEAT_LEVEL = BlazeBurnerBlock.HEAT_LEVEL;
+
     public GasBurnerBlock(Properties properties) {
         super(properties);
+        registerDefaultState(defaultBlockState().setValue(HEAT_LEVEL, BlazeBurnerBlock.HeatLevel.NONE));
     }
 
     public static LootTable.Builder buildLootTable() {
         LootItemCondition.Builder survivesExplosion = ExplosionCondition.survivesExplosion();
-        //GasBurnerBlock block = ModBlocks.GAS_BURNER.get();
+        GasBurnerBlock block = ModBlocks.GAS_BURNER.get();
         LootTable.Builder builder = LootTable.lootTable();
         LootPool.Builder poolBuilder = LootPool.lootPool();
+        poolBuilder.add(LootItem.lootTableItem(ModBlocks.GAS_BURNER.get())
+                .when(survivesExplosion)
+                );
 
         return builder;
     }
@@ -54,8 +64,9 @@ public class GasBurnerBlock extends HorizontalDirectionalBlock implements IBE<Ga
     }
 
     @Override
-    protected RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder);
+        builder.add(HEAT_LEVEL);
     }
 
     @Override
@@ -84,10 +95,9 @@ public class GasBurnerBlock extends HorizontalDirectionalBlock implements IBE<Ga
 
     @Override
     public @Nullable BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        if (state.getValue(HEAT_LEVEL) == BlazeBurnerBlock.HeatLevel.NONE)
-            return null;
+        /*if (state.getValue(HEAT_LEVEL) == BlazeBurnerBlock.HeatLevel.NONE)
+            return null;*/
         return IBE.super.newBlockEntity(pos, state);
-        //return new GasBurnerBlockEntity(this, pos, state);
     }
 
     @Override

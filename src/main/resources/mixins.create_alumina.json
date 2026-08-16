@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.nerfashton.create_alumina.content.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "alumina.refmap.json",
+  "mixins": [
+    "CreateFluidTankMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

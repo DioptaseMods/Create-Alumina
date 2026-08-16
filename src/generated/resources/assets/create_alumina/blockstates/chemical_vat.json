@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "bottom=false,top=false": {
+      "model": "create_alumina:block/chemical_vat/block_middle"
+    },
+    "bottom=false,top=true": {
+      "model": "create_alumina:block/chemical_vat/block_top"
+    },
+    "bottom=true,top=false": {
+      "model": "create_alumina:block/chemical_vat/block_bottom"
+    },
+    "bottom=true,top=true": {
+      "model": "create_alumina:block/chemical_vat/block_single"
+    }
+  }
+}

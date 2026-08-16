@@ -1,0 +1,8 @@
+{
+  "values": [
+    "create_alumina:chemical_vat",
+    "create_alumina:vat_window",
+    "create_alumina:stainless_steel_casing",
+    "create_alumina:hastelloy_casing"
+  ]
+}

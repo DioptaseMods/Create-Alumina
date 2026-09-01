@@ -35,11 +35,12 @@ import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import net.neoforged.neoforge.items.ItemStackHandler;
 import net.nerfashton.create_alumina.registry.CABlockEntities;
+import org.patryk3211.powergrid.electricity.base.ElectricBlockEntity;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
-public class ChemicalVatBlockEntity extends SmartBlockEntity implements IHaveGoggleInformation, IMultiBlockEntityContainer.Fluid, IMultiBlockEntityContainer.Inventory, Clearable {
+public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHaveGoggleInformation, IMultiBlockEntityContainer.Fluid, IMultiBlockEntityContainer.Inventory, Clearable {
 
     private static final int MAX_SIZE = 5;
     private static final int DEFAULT_CAPACITY_MULTIPLIER = 8000;
@@ -447,8 +448,10 @@ public class ChemicalVatBlockEntity extends SmartBlockEntity implements IHaveGog
         return DEFAULT_CAPACITY_MULTIPLIER;
     }
 
-    public static int getMaxHeight() {
-        return 3;
+    public int getMaxHeight() {
+        if (this.width == 5 || this.width == 4) return 4;
+        return 16;
+
     }
 
     public LerpedFloat getFluidLevel() {
@@ -556,5 +559,10 @@ public class ChemicalVatBlockEntity extends SmartBlockEntity implements IHaveGog
     @Override
     public Object modifyExtraData(Object data) {
         return data;
+    }
+
+    @Override
+    public void buildCircuit(CircuitBuilder circuitBuilder) {
+
     }
 }

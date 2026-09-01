@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "all": "create_alumina:block/electrolysis_vat"
+    "all": "create_alumina:block/stainless_steel_block"
   }
 }

@@ -18,10 +18,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import net.neoforged.neoforge.client.model.data.ModelData.Builder;
 import net.neoforged.neoforge.client.model.data.ModelProperty;
+import net.nerfashton.create_alumina.content.block.VatWindowBlock;
 import net.nerfashton.create_alumina.registry.CAPartialModels;
 
 public class ChemicalVatModel extends CTModel {
@@ -40,8 +42,12 @@ public class ChemicalVatModel extends CTModel {
     protected ModelData.Builder gatherModelData(Builder builder, BlockAndTintGetter world, BlockPos pos, BlockState state, ModelData blockEntityData) {
         super.gatherModelData(builder, world, pos, state, blockEntityData);
         CullData cullData = new CullData();
-        for (Direction d : Iterate.horizontalDirections)
-            cullData.setCulled(d, ConnectivityHandler.isConnected(world, pos, pos.relative(d)));
+        for (Direction d : Iterate.horizontalDirections) {
+
+            BlockState neighborState = world.getBlockState(pos.relative(d));
+            boolean isAttachedWindow = neighborState.getBlock() instanceof VatWindowBlock && neighborState.getValue(VatWindowBlock.FACING) == d;
+            cullData.setCulled(d, isAttachedWindow || ConnectivityHandler.isConnected(world, pos, pos.relative(d)));
+        }
         return builder.with(CULL_PROPERTY, cullData);
     }
 

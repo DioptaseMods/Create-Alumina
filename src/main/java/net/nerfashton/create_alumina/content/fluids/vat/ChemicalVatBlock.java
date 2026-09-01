@@ -44,7 +44,6 @@ import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.common.util.DeferredSoundType;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
-import net.nerfashton.create_alumina.content.block.VatWindowBlock;
 import net.nerfashton.create_alumina.registry.CABlockEntities;
 
 public class ChemicalVatBlock extends Block implements IWrenchable, IBE<ChemicalVatBlockEntity> {
@@ -104,9 +103,9 @@ public class ChemicalVatBlock extends Block implements IWrenchable, IBE<Chemical
 
     @Override
     protected boolean skipRendering(BlockState state, BlockState adjacentState, Direction direction) {
-        if (adjacentState.getBlock() instanceof StainedGlassBlock) {
-            return true;
-        }
+//        if (adjacentState.getBlock() instanceof StainedGlassBlock) {
+//            return true;
+//        }
         return super.skipRendering(state, adjacentState, direction);
     }
 

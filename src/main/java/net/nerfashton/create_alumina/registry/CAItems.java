@@ -8,7 +8,9 @@ import static net.nerfashton.create_alumina.CreateAlumina.REGISTRATE;
 public class CAItems {
     public static final ItemEntry<Item>
             STAINLESS_STEEL_INGOT = ingotEntry("stainless_steel_ingot"),
-            HASTELLOY_INGOT = ingotEntry("hastelloy_ingot");
+            HASTELLOY_INGOT = ingotEntry("hastelloy_ingot"),
+            STAINLESS_STEEL_SHEET = REGISTRATE.item("stainless_steel_sheet", Item::new)
+                    .register();
 
 
     private static ItemEntry<Item> ingotEntry(String name) {

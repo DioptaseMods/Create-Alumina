@@ -1,8 +1,10 @@
 {
   "block.create_alumina.chemical_vat": "Chemical Vat",
   "block.create_alumina.hastelloy_casing": "Hastelloy Casing",
+  "block.create_alumina.stainless_steel_block": "Stainless Steel Block",
   "block.create_alumina.stainless_steel_casing": "Stainless Steel Casing",
   "block.create_alumina.vat_window": "Vat Window",
   "item.create_alumina.hastelloy_ingot": "Hastelloy Ingot",
-  "item.create_alumina.stainless_steel_ingot": "Stainless Steel Ingot"
+  "item.create_alumina.stainless_steel_ingot": "Stainless Steel Ingot",
+  "item.create_alumina.stainless_steel_sheet": "Stainless Steel Sheet"
 }

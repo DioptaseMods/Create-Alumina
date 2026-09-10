@@ -3,10 +3,10 @@ package net.nerfashton.create_alumina;
 import com.simibubi.create.foundation.item.ItemDescription;
 import com.simibubi.create.foundation.item.KineticStats;
 import com.simibubi.create.foundation.item.TooltipModifier;
+import com.tterrag.registrate.providers.ProviderType;
 import net.createmod.catnip.lang.FontHelper;
-import net.nerfashton.create_alumina.registry.CABlockEntities;
-import net.nerfashton.create_alumina.registry.CABlocks;
-import net.nerfashton.create_alumina.registry.CAItems;
+import net.nerfashton.create_alumina.api.chemical.registry.ModDataComponents;
+import net.nerfashton.create_alumina.registry.*;
 import net.nerfashton.create_alumina.core.CreateAluminaRegistrate;
 import net.nerfashton.create_alumina.core.ModCapabilities;
 
@@ -25,19 +25,24 @@ public class CreateAlumina {
 
     public CreateAlumina(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(ModCapabilities::register);
-        // Do not add this line if there are no @SubscribeEvent-annotated functions in
-        // this class, like onServerStarting() below.
+        REGISTRATE.registerEventListeners(modEventBus);
+
         // NeoForge.EVENT_BUS.register(this);
 
-        // ModCreativeTabs.register(modEventBus);
-
-        REGISTRATE.registerEventListeners(modEventBus);
+        CACreativeTabs.register(modEventBus);
+        modEventBus.addListener(CACreativeTabs::addCreative);
+        ModDataComponents.register(modEventBus);
 
         CABlocks.init();
         CABlockEntities.init();
         CAItems.init();
+        CAFluids.init();
 
-        // Config Registration
+        REGISTRATE.addDataGenerator(ProviderType.LANG, prov -> {
+            // UI & Tooltips
+            prov.add("creativetab.create_alumina.items_tab", "Create Alumina");
+        });
+
         // modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 }

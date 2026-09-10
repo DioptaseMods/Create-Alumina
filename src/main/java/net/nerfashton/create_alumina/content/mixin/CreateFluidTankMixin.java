@@ -3,7 +3,7 @@ package net.nerfashton.create_alumina.content.mixin;
 import com.simibubi.create.content.fluids.tank.CreativeFluidTankBlockEntity;
 import com.simibubi.create.content.fluids.tank.FluidTankBlockEntity;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
-import net.nerfashton.alumina.core.fluid.BlendingFluidHandler;
+import net.nerfashton.create_alumina.api.fluid.BlendingFluidHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

@@ -4,7 +4,14 @@
   "block.create_alumina.stainless_steel_block": "Stainless Steel Block",
   "block.create_alumina.stainless_steel_casing": "Stainless Steel Casing",
   "block.create_alumina.vat_window": "Vat Window",
+  "creativetab.create_alumina.items_tab": "Create Alumina",
+  "fluid.create_alumina.distilled_water": "Distilled Water",
+  "fluid.create_alumina.molten_cryolite": "Molten Cryolite",
+  "item.create_alumina.chemical_flask": "Chemical Flask",
+  "item.create_alumina.distilled_water_bucket": "Distilled Water Bucket",
   "item.create_alumina.hastelloy_ingot": "Hastelloy Ingot",
+  "item.create_alumina.respirator": "Respirator",
+  "item.create_alumina.solution_analyzer": "Solution Analyzer",
   "item.create_alumina.stainless_steel_ingot": "Stainless Steel Ingot",
   "item.create_alumina.stainless_steel_sheet": "Stainless Steel Sheet"
 }

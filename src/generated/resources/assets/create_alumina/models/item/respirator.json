@@ -1,0 +1,29 @@
+{
+  "base": {
+    "parent": "minecraft:item/generated",
+    "textures": {
+      "layer0": "create_alumina:item/respirator"
+    }
+  },
+  "gui_light": "front",
+  "loader": "neoforge:separate_transforms",
+  "perspectives": {
+    "head": {
+      "parent": "create_alumina:block/respirator",
+      "display": {
+        "head": {
+          "rotation": [
+            0,
+            270,
+            0
+          ],
+          "scale": [
+            1.7,
+            1.7,
+            1.7
+          ]
+        }
+      }
+    }
+  }
+}

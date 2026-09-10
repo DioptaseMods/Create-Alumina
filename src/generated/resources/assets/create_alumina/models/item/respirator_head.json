@@ -1,0 +1,17 @@
+{
+  "parent": "create_alumina:block/respirator",
+  "display": {
+    "head": {
+      "rotation": [
+        0,
+        270,
+        0
+      ],
+      "scale": [
+        1.7,
+        1.7,
+        1.7
+      ]
+    }
+  }
+}

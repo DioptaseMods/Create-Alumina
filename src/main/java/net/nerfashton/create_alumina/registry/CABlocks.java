@@ -22,7 +22,6 @@ import static com.simibubi.create.foundation.data.TagGen.pickaxeOnly;
 import static net.nerfashton.create_alumina.CreateAlumina.REGISTRATE;
 
 public class CABlocks {
-    AllBlocks allBlocks;
 
     public static final BlockEntry<Block> STAINLESS_STEEL_BLOCK = REGISTRATE.block("stainless_steel_block", Block::new)
             .properties(properties -> BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK))

@@ -1,13 +1,16 @@
 package net.nerfashton.create_alumina.api.chemical.registry;
 
+import com.mojang.serialization.Codec;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.codec.ByteBufCodecs;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.fluids.SimpleFluidContent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.nerfashton.create_alumina.CreateAlumina;
 import net.nerfashton.create_alumina.api.chemical.ChemicalComposition;
+import net.nerfashton.create_alumina.api.chemical.SoluteData;
 
 import java.util.function.Supplier;
 
@@ -27,12 +30,28 @@ public class ModDataComponents {
                             .networkSynchronized(ChemicalComposition.STREAM_CODEC)
             );
 
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<SoluteData>> SOLUTE_DATA =
+            DATA_COMPONENTS.registerComponentType(
+                    "solute_data",
+                    builder -> builder
+                            .persistent(SoluteData.CODEC)
+                            .networkSynchronized(SoluteData.STREAM_CODEC)
+            );
+
     public static final Supplier<DataComponentType<SimpleFluidContent>> FLUID_CONTENT =
             DATA_COMPONENTS.register("flask_fluid", () ->
                     DataComponentType.<SimpleFluidContent>builder()
                             .persistent(SimpleFluidContent.CODEC)
                             .networkSynchronized(SimpleFluidContent.STREAM_CODEC)
                             .build()
+            );
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Float>> PASSIVATION_LEVEL =
+            DATA_COMPONENTS.registerComponentType(
+                    "passivation_level",
+                    builder -> builder
+                            .persistent(Codec.FLOAT)
+                            .networkSynchronized(ByteBufCodecs.FLOAT)
             );
 
     public static void register(IEventBus eventBus) {

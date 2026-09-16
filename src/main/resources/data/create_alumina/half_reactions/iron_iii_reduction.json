@@ -1,0 +1,20 @@
+{
+  "e0": 0.77,
+  "electrons": 1,
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:iron_iii",
+        "amount": 1.0
+      }
+    ]
+  },
+  "products": {
+    "ions": [
+      {
+        "ion": "create_alumina:iron",
+        "amount": 1.0
+      }
+    ]
+  }
+}

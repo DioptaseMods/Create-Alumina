@@ -1,0 +1,27 @@
+{
+  "description": "Iron(III) reduction by metallic Iron (2Fe3+ + Fe -> 3Fe2+)",
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:iron_iii",
+        "amount": 2.0
+      }
+    ],
+    "items": [
+      {
+        "item": "minecraft:iron_ingot",
+        "count": 1
+      }
+    ]
+  },
+  "products": {
+    "ions": [
+      {
+        "ion": "create_alumina:iron",
+        "amount": 3.0
+      }
+    ]
+  },
+  "heat_per_mol": 150.0,
+  "rate": 0.05
+}

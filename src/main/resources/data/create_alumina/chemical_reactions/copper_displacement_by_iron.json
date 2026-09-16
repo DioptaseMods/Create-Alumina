@@ -1,0 +1,35 @@
+{
+  "description": "Copper displacement by Iron (Cu2+ + Fe -> Cu + Fe2+)",
+  "reduction": "create_alumina:copper_reduction",
+  "oxidation": "create_alumina:iron_reduction",
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:copper",
+        "amount": 1.0
+      }
+    ],
+    "items": [
+      {
+        "item": "minecraft:iron_ingot",
+        "count": 1
+      }
+    ]
+  },
+  "products": {
+    "ions": [
+      {
+        "ion": "create_alumina:iron",
+        "amount": 1.0
+      }
+    ],
+    "items": [
+      {
+        "item": "minecraft:copper_ingot",
+        "count": 1
+      }
+    ]
+  },
+  "heat_per_mol": 152.0,
+  "rate": 0.05
+}

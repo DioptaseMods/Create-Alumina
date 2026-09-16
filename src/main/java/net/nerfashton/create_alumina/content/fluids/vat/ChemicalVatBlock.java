@@ -28,7 +28,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
-import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -103,9 +102,6 @@ public class ChemicalVatBlock extends Block implements IWrenchable, IBE<Chemical
 
     @Override
     protected boolean skipRendering(BlockState state, BlockState adjacentState, Direction direction) {
-//        if (adjacentState.getBlock() instanceof StainedGlassBlock) {
-//            return true;
-//        }
         return super.skipRendering(state, adjacentState, direction);
     }
 

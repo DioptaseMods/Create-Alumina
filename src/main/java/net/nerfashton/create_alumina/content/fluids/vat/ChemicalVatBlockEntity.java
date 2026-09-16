@@ -12,12 +12,14 @@ import com.simibubi.create.foundation.mixin.accessor.ItemStackHandlerAccessor;
 import com.simibubi.create.foundation.utility.SameSizeCombinedInvWrapper;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.catnip.nbt.NBTHelper;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.Clearable;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -34,11 +36,18 @@ import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import net.neoforged.neoforge.items.ItemStackHandler;
+import net.nerfashton.create_alumina.api.chemical.ChemicalComposition;
+import net.nerfashton.create_alumina.api.chemical.ChemicalSpecies;
+import net.nerfashton.create_alumina.api.chemical.ChemistryAPI;
+import net.nerfashton.create_alumina.api.chemical.registry.ModChemicals;
+import net.nerfashton.create_alumina.api.chemical.registry.ModDataComponents;
+import net.nerfashton.create_alumina.api.fluid.BlendingFluidHandler;
 import net.nerfashton.create_alumina.registry.CABlockEntities;
 import org.patryk3211.powergrid.electricity.base.ElectricBlockEntity;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
 
 public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHaveGoggleInformation, IMultiBlockEntityContainer.Fluid, IMultiBlockEntityContainer.Inventory, Clearable {
 
@@ -47,9 +56,12 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     private static final int SLOTS_PER_BLOCK = 6;
 
     protected IFluidHandler fluidCapability;
+    protected BlendingFluidHandler blendingFluidHandler;
     protected ICapabilityProvider<IItemHandler> itemCapability;
     protected SmartFluidTank tankInventory;
     protected ItemStackHandler inventory;
+
+    protected final VatData vatData = new VatData();
 
     protected BlockPos controller;
     protected BlockPos lastKnownPos;
@@ -83,6 +95,10 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
         height = 1;
         width = 1;
         refreshCapabilities();
+    }
+
+    public VatData getVatData() {
+        return vatData;
     }
 
     protected SmartFluidTank createInventory() {
@@ -122,6 +138,10 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
             updateConnectivity();
         if (fluidLevel != null)
             fluidLevel.tickChaser();
+
+        if (level != null && !level.isClientSide && isController()) {
+            vatData.tick(this);
+        }
     }
 
     @Override
@@ -183,13 +203,10 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
         forceFluidLevelUpdate = true;
     }
 
-    @Override
     public void removeController(boolean keepContents) {
-        if (!hasLevel() || level.isClientSide)
+        if (level.isClientSide)
             return;
         updateConnectivity = true;
-        if (!keepContents)
-            applyFluidTankSize(1);
         controller = null;
         width = 1;
         height = 1;
@@ -199,7 +216,7 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
         if (ChemicalVatBlock.isVat(state)) {
             state = state.setValue(ChemicalVatBlock.BOTTOM, true);
             state = state.setValue(ChemicalVatBlock.TOP, true);
-            getLevel().setBlock(worldPosition, state, Block.UPDATE_CLIENTS | Block.UPDATE_INVISIBLE | Block.UPDATE_KNOWN_SHAPE);
+            getLevel().setBlock(worldPosition, state, 22);
         }
 
         refreshCapabilities();
@@ -220,20 +237,8 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
             return;
         }
         super.sendData();
-        queuedSync = false;
         syncCooldown = SYNC_RATE;
-    }
-
-    @Override
-    public void setController(BlockPos pos) {
-        if ((!hasLevel() || level.isClientSide) && !isVirtual())
-            return;
-        if (pos.equals(this.controller))
-            return;
-        this.controller = pos;
-        refreshCapabilities();
-        setChanged();
-        sendData();
+        queuedSync = false;
     }
 
     public void refreshCapabilities() {
@@ -243,25 +248,32 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     }
 
     private IFluidHandler handlerForFluidCapability() {
-        return isController() ? tankInventory : ((getControllerBE() != null) ? getControllerBE().handlerForFluidCapability() : new FluidTank(0));
+        ChemicalVatBlockEntity controllerBE = getControllerBE();
+        if (controllerBE != null)
+            return controllerBE.getOrCreateBlendingFluidHandler();
+        return isController() ? getOrCreateBlendingFluidHandler() : new FluidTank(0);
+    }
+
+    public BlendingFluidHandler getOrCreateBlendingFluidHandler() {
+        if (blendingFluidHandler == null) {
+            blendingFluidHandler = new BlendingFluidHandler(tankInventory);
+        }
+        return blendingFluidHandler;
+    }
+
+    public void updateCapabilities() {
+        refreshCapabilities();
     }
 
     private void initItemCapability() {
-        if (!hasLevel())
-            return;
-        if (itemCapability != null && itemCapability.getCapability() != null)
+        ChemicalVatBlockEntity controllerBE = getControllerBE();
+        if (controllerBE == null)
             return;
 
-        if (!isController()) {
-            ChemicalVatBlockEntity controllerBE = getControllerBE();
-            if (controllerBE == null)
-                return;
-            controllerBE.initItemCapability();
+        if (controllerBE != this) {
             itemCapability = ICapabilityProvider.of(() -> {
-                if (controllerBE.isRemoved())
-                    return null;
                 if (controllerBE.itemCapability == null)
-                    return null;
+                    controllerBE.initItemCapability();
                 return controllerBE.itemCapability.getCapability();
             });
             return;
@@ -282,6 +294,11 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     }
 
     public IFluidHandler getFluidHandler() {
+        ChemicalVatBlockEntity controllerBE = getControllerBE();
+        if (controllerBE != null)
+            return controllerBE.getOrCreateBlendingFluidHandler();
+        if (isController())
+            return getOrCreateBlendingFluidHandler();
         if (fluidCapability == null)
             refreshCapabilities();
         return fluidCapability;
@@ -299,12 +316,6 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     }
 
     @Override
-    public boolean isController() {
-        return controller == null || worldPosition.getX() == controller.getX()
-                && worldPosition.getY() == controller.getY() && worldPosition.getZ() == controller.getZ();
-    }
-
-    @Override
     public BlockPos getLastKnownPos() {
         return lastKnownPos;
     }
@@ -312,18 +323,22 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     @Override
     protected AABB createRenderBoundingBox() {
         if (isController())
-            return super.createRenderBoundingBox().expandTowards(width - 1, height - 1, width - 1);
-        else
-            return super.createRenderBoundingBox();
+            return new AABB(worldPosition).expandTowards(width - 1, height - 1, width - 1);
+        return super.createRenderBoundingBox();
     }
 
     @Override
-    public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
-        ChemicalVatBlockEntity controllerBE = getControllerBE();
-        if (controllerBE == null)
-            return false;
-        return containedFluidTooltip(tooltip, isPlayerSneaking,
-                level.getCapability(Capabilities.FluidHandler.BLOCK, controllerBE.getBlockPos(), null));
+    public boolean isController() {
+        return controller == null || worldPosition.equals(controller);
+    }
+
+    public void setController(BlockPos controller) {
+        if (level.isClientSide && !isVirtual())
+            return;
+        this.controller = controller;
+        refreshCapabilities();
+        setChanged();
+        sendData();
     }
 
     @Override
@@ -354,6 +369,8 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
             tankInventory.readFromNBT(registries, compound.getCompound("TankContent"));
             if (tankInventory.getSpace() < 0)
                 tankInventory.drain(-tankInventory.getSpace(), FluidAction.EXECUTE);
+            if (compound.contains("VatData"))
+                vatData.read(compound.getCompound("VatData"), registries);
         }
 
         if (compound.contains("ForceFluidLevel") || fluidLevel == null)
@@ -397,6 +414,7 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
             compound.put("TankContent", tankInventory.writeToNBT(registries, new CompoundTag()));
             compound.putInt("Size", width);
             compound.putInt("Height", height);
+            compound.put("VatData", vatData.write(new CompoundTag(), registries));
         }
 
         compound.put("Inventory", inventory.serializeNBT(registries));
@@ -451,7 +469,6 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     public int getMaxHeight() {
         if (this.width == 5 || this.width == 4) return 4;
         return 16;
-
     }
 
     public LerpedFloat getFluidLevel() {
@@ -564,5 +581,37 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     @Override
     public void buildCircuit(CircuitBuilder circuitBuilder) {
 
+    }
+
+    @Override
+    public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
+        ChemicalVatBlockEntity controllerBE = getControllerBE();
+        if (controllerBE == null)
+            return false;
+
+        boolean added = containedFluidTooltip(tooltip, isPlayerSneaking,
+                level.getCapability(Capabilities.FluidHandler.BLOCK, controllerBE.getBlockPos(), null));
+
+        FluidStack fluid = controllerBE.getTankInventory().getFluid();
+        if (ChemistryAPI.isSolution(fluid)) {
+            ChemicalComposition comp = fluid.get(ModDataComponents.CHEMICAL_COMPOSITION.get());
+            if (comp != null && !comp.solutes().isEmpty()) {
+                tooltip.add(Component.literal("Dissolved Solutes:").withStyle(ChatFormatting.GOLD));
+                for (Map.Entry<ResourceLocation, Float> entry : comp.solutes().entrySet()) {
+                    ChemicalSpecies species = ModChemicals.REGISTRY.get(entry.getKey());
+                    String name = species != null ? species.symbol() : entry.getKey().getPath();
+                    tooltip.add(Component.literal(" • ")
+                            .withStyle(ChatFormatting.DARK_GRAY)
+                            .append(Component.literal(name).withStyle(ChatFormatting.WHITE))
+                            .append(Component.literal(String.format(": %.3f mol/L", entry.getValue())).withStyle(ChatFormatting.AQUA)));
+                }
+                tooltip.add(Component.literal("Temperature: ")
+                        .withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(String.format("%.1f °C (%.1f K)", comp.temperature() - 273.15f, comp.temperature()))
+                                .withStyle(ChatFormatting.YELLOW)));
+                added = true;
+            }
+        }
+        return added;
     }
 }

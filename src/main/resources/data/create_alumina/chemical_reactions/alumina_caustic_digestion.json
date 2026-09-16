@@ -1,0 +1,27 @@
+{
+  "description": "Bayer digestion of Alumina by Sodium Hydroxide (Al2O3 + 2OH- -> 2[Al(OH)4]-)",
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:hydroxide",
+        "amount": 2.0
+      }
+    ],
+    "items": [
+      {
+        "item": "create_alumina:alumina",
+        "count": 1
+      }
+    ]
+  },
+  "products": {
+    "ions": [
+      {
+        "ion": "create_alumina:aluminate",
+        "amount": 2.0
+      }
+    ]
+  },
+  "heat_per_mol": 80.0,
+  "rate": 0.04
+}

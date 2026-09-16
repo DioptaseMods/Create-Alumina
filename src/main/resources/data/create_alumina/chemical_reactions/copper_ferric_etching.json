@@ -1,0 +1,31 @@
+{
+  "description": "Copper etching by Iron(III) (2Fe3+ + Cu -> 2Fe2+ + Cu2+)",
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:iron_iii",
+        "amount": 2.0
+      }
+    ],
+    "items": [
+      {
+        "item": "minecraft:copper_ingot",
+        "count": 1
+      }
+    ]
+  },
+  "products": {
+    "ions": [
+      {
+        "ion": "create_alumina:iron",
+        "amount": 2.0
+      },
+      {
+        "ion": "create_alumina:copper",
+        "amount": 1.0
+      }
+    ]
+  },
+  "heat_per_mol": 110.0,
+  "rate": 0.05
+}

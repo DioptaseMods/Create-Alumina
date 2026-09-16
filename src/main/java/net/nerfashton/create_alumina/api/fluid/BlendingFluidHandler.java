@@ -24,6 +24,10 @@ public class BlendingFluidHandler implements IFluidHandler {
         this.delegate = delegate;
     }
 
+    public IFluidHandler getDelegate() {
+        return delegate;
+    }
+
     @Override
     public int getTanks() {
         return delegate.getTanks();
@@ -41,9 +45,9 @@ public class BlendingFluidHandler implements IFluidHandler {
 
     @Override
     public boolean isFluidValid(int tank, @NotNull FluidStack stack) {
-        if (ChemistryAPI.isSolution(stack)) {
+        if (!stack.isEmpty() && (ChemistryAPI.isSolution(stack) || ChemistryAPI.isBaseSolvent(stack.getFluid()))) {
             FluidStack inTank = delegate.getFluidInTank(tank);
-            if (!inTank.isEmpty() && ChemistryAPI.isBaseSolvent(inTank.getFluid())) {
+            if (!inTank.isEmpty() && ChemistryAPI.isBaseSolvent(inTank.getFluid()) && inTank.getFluid().isSame(stack.getFluid())) {
                 return true;
             }
         }
@@ -52,8 +56,8 @@ public class BlendingFluidHandler implements IFluidHandler {
 
     @Override
     public int fill(FluidStack resource, FluidAction action) {
-        if (resource.isEmpty() || !ChemistryAPI.isSolution(resource)) {
-            return delegate.fill(resource, action);
+        if (resource.isEmpty()) {
+            return 0;
         }
 
         int standardFill = delegate.fill(resource, FluidAction.SIMULATE);
@@ -64,7 +68,7 @@ public class BlendingFluidHandler implements IFluidHandler {
         for (int i = 0; i < delegate.getTanks(); i++) {
             FluidStack inTank = delegate.getFluidInTank(i);
 
-            if (!inTank.isEmpty() && ChemistryAPI.isBaseSolvent(inTank.getFluid()) && ChemistryAPI.isBaseSolvent(resource.getFluid()) && (resource.getFluid() == inTank.getFluid())) {
+            if (!inTank.isEmpty() && ChemistryAPI.isBaseSolvent(inTank.getFluid()) && ChemistryAPI.isBaseSolvent(resource.getFluid()) && inTank.getFluid().isSame(resource.getFluid())) {
                 int capacity = delegate.getTankCapacity(i);
                 int space = capacity - inTank.getAmount();
                 if (space <= 0) continue;

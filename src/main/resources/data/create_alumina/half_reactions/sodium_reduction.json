@@ -1,0 +1,20 @@
+{
+  "e0": -2.71,
+  "electrons": 1,
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:sodium",
+        "amount": 1.0
+      }
+    ]
+  },
+  "products": {
+    "items": [
+      {
+        "item": "create_alumina:salt_powder",
+        "count": 1
+      }
+    ]
+  }
+}

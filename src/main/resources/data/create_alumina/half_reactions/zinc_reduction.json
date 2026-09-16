@@ -1,0 +1,15 @@
+{
+  "e0": -0.76,
+  "electrons": 2,
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:zinc",
+        "amount": 1.0
+      }
+    ]
+  },
+  "products": {
+    "items": []
+  }
+}

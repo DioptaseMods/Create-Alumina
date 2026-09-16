@@ -1,0 +1,35 @@
+{
+  "description": "Copper displacement by Aluminum (3Cu2+ + 2Al -> 3Cu + 2Al3+)",
+  "reduction": "create_alumina:copper_reduction",
+  "oxidation": "create_alumina:aluminum_reduction",
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:copper",
+        "amount": 3.0
+      }
+    ],
+    "items": [
+      {
+        "item": "create_alumina:aluminum_ingot",
+        "count": 2
+      }
+    ]
+  },
+  "products": {
+    "ions": [
+      {
+        "ion": "create_alumina:aluminum",
+        "amount": 2.0
+      }
+    ],
+    "items": [
+      {
+        "item": "minecraft:copper_ingot",
+        "count": 3
+      }
+    ]
+  },
+  "heat_per_mol": 580.0,
+  "rate": 0.05
+}

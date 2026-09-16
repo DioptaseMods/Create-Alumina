@@ -2,6 +2,7 @@ package net.nerfashton.create_alumina.api.chemical;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.nerfashton.create_alumina.CreateAlumina;
 import net.nerfashton.create_alumina.api.chemical.registry.ModChemicals;
@@ -380,6 +381,8 @@ public class ChemistryAPI {
     }
 
     public static boolean isBaseSolvent(Fluid fluid) {
-        return fluid.getFluidType() instanceof SolventFluidType;
+        return fluid.getFluidType() instanceof SolventFluidType
+                || fluid.isSame(Fluids.WATER)
+                || fluid.isSame(Fluids.FLOWING_WATER);
     }
 }

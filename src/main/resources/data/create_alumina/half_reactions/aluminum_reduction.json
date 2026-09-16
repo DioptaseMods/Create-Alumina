@@ -1,0 +1,20 @@
+{
+  "e0": -1.66,
+  "electrons": 3,
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:aluminum",
+        "amount": 1.0
+      }
+    ]
+  },
+  "products": {
+    "items": [
+      {
+        "item": "create_alumina:aluminum_ingot",
+        "count": 1
+      }
+    ]
+  }
+}

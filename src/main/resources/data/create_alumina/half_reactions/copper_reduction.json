@@ -1,0 +1,20 @@
+{
+  "e0": 0.34,
+  "electrons": 2,
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:copper",
+        "amount": 1.0
+      }
+    ]
+  },
+  "products": {
+    "items": [
+      {
+        "item": "minecraft:copper_ingot",
+        "count": 1
+      }
+    ]
+  }
+}

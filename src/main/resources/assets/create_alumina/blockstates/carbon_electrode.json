@@ -1,0 +1,36 @@
+{
+  "variants": {
+    "facing=south,type=anode": {
+      "model": "create_alumina:block/carbon_electrode",
+      "y": 0
+    },
+    "facing=west,type=anode": {
+      "model": "create_alumina:block/carbon_electrode",
+      "y": 90
+    },
+    "facing=north,type=anode": {
+      "model": "create_alumina:block/carbon_electrode",
+      "y": 180
+    },
+    "facing=east,type=anode": {
+      "model": "create_alumina:block/carbon_electrode",
+      "y": 270
+    },
+    "facing=south,type=cathode": {
+      "model": "create_alumina:block/carbon_electrode",
+      "y": 0
+    },
+    "facing=west,type=cathode": {
+      "model": "create_alumina:block/carbon_electrode",
+      "y": 90
+    },
+    "facing=north,type=cathode": {
+      "model": "create_alumina:block/carbon_electrode",
+      "y": 180
+    },
+    "facing=east,type=cathode": {
+      "model": "create_alumina:block/carbon_electrode",
+      "y": 270
+    }
+  }
+}

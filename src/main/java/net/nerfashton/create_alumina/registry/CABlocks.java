@@ -15,6 +15,7 @@ import net.nerfashton.create_alumina.content.fluids.vat.ChemicalVatBlock;
 import net.nerfashton.create_alumina.content.fluids.vat.ChemicalVatGenerator;
 import net.nerfashton.create_alumina.content.fluids.vat.ChemicalVatModel;
 import net.nerfashton.create_alumina.content.fluids.vat.ChemicalVatItem;
+import net.nerfashton.create_alumina.content.fluids.vat.electrode.CarbonElectrodeBlock;
 
 import static com.simibubi.create.foundation.data.CreateRegistrate.casingConnectivity;
 import static com.simibubi.create.foundation.data.CreateRegistrate.connectedTextures;
@@ -36,6 +37,16 @@ public class CABlocks {
             .onRegister(CreateRegistrate.blockModel(() -> ChemicalVatModel::standard))
             .item(ChemicalVatItem::new)
             .model(AssetLookup.customBlockItemModel("_", "block_single"))
+            .build()
+            .register();
+
+    public static final BlockEntry<CarbonElectrodeBlock> CARBON_ELECTRODE = REGISTRATE.block("carbon_electrode", CarbonElectrodeBlock::new)
+            .initialProperties(SharedProperties::softMetal)
+            .properties(p -> p.noOcclusion())
+            .transform(pickaxeOnly())
+            .blockstate((ctx, prov) -> {})
+            .item()
+            .model((ctx, prov) -> prov.withExistingParent(ctx.getName(), prov.modLoc("block/carbon_electrode")))
             .build()
             .register();
 

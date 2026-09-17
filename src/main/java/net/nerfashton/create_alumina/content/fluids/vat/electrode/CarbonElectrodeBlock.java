@@ -27,7 +27,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nerfashton.create_alumina.content.fluids.vat.ChemicalVatBlock;
@@ -81,8 +80,8 @@ public class CarbonElectrodeBlock extends HorizontalElectricBlock implements IBE
     private static TerminalBoundingBox rotateToFacing(TerminalBoundingBox box, Direction facing) {
         return switch (facing) {
             case SOUTH -> box.rotateAroundY(180);
-            case WEST -> box.rotateAroundY(90);
-            case EAST -> box.rotateAroundY(-90);
+            case EAST -> box.rotateAroundY(90);
+            case WEST -> box.rotateAroundY(-90);
             default -> box;
         };
     }
@@ -91,11 +90,6 @@ public class CarbonElectrodeBlock extends HorizontalElectricBlock implements IBE
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         super.createBlockStateDefinition(builder);
         builder.add(TYPE);
-    }
-
-    @Override
-    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return SHAPER.get(state.getValue(HORIZONTAL_FACING));
     }
 
     @Override

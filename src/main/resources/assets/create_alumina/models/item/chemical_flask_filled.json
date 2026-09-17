@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "create_alumina:item/chemical_flask_fluid",
+    "layer1": "create_alumina:item/chemical_flask"
+  }
+}

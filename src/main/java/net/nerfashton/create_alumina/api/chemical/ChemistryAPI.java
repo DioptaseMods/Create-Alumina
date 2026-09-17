@@ -2,7 +2,6 @@ package net.nerfashton.create_alumina.api.chemical;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.material.Fluid;
-import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.nerfashton.create_alumina.CreateAlumina;
 import net.nerfashton.create_alumina.api.chemical.registry.ModChemicals;
@@ -354,22 +353,22 @@ public class ChemistryAPI {
      * Calculates current in Amperes for spontaneous galvanic reactions.
      */
     public static double calculateGalvanicCurrent(double eCell, double overpotentialThreshold, double cellResistance) {
-        double drivingVoltage = eCell - overpotentialThreshold;
-        return (drivingVoltage / cellResistance) * 10.0;
+        double drivingVoltage = Math.max(0.0, eCell - overpotentialThreshold);
+        return (drivingVoltage / Math.max(cellResistance, 0.05)) * 25.0;
     }
 
     /**
      * Calculates current in Amperes for electrolytic reactions driven by external voltage.
      */
     public static double calculateElectrolysisCurrent(double netAppliedVoltage, double cellResistance) {
-        return netAppliedVoltage / cellResistance;
+        return netAppliedVoltage / Math.max(cellResistance, 0.05);
     }
 
     /**
      * Calculates moles of electron transferred during time step dt at current I.
      */
     public static double calculateMolesElectronsTransferred(double currentAmps, double dt) {
-        return (currentAmps * dt * 200.0) / FARADAY_CONSTANT;
+        return (currentAmps * dt * 100000.0) / FARADAY_CONSTANT;
     }
 
     /**
@@ -380,9 +379,11 @@ public class ChemistryAPI {
         return powerHeatW * dt;
     }
 
+    /**
+     * Checks if the given fluid is a registered solvent capable of dissolving chemicals.
+     * Note: Plain water is currently excluded due to unpredictable native Minecraft ions.
+     */
     public static boolean isBaseSolvent(Fluid fluid) {
-        return fluid.getFluidType() instanceof SolventFluidType
-                || fluid.isSame(Fluids.WATER)
-                || fluid.isSame(Fluids.FLOWING_WATER);
+        return fluid.getFluidType() instanceof SolventFluidType;
     }
 }

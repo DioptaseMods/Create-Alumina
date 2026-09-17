@@ -10,6 +10,11 @@
     ]
   },
   "products": {
-    "items": []
+    "items": [
+      {
+        "item": "create:zinc_ingot",
+        "count": 1
+      }
+    ]
   }
 }

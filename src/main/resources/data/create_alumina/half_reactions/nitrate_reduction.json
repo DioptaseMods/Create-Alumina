@@ -1,0 +1,17 @@
+{
+  "e0": 0.96,
+  "electrons": 3,
+  "reactants": {
+    "ions": [
+      {
+        "ion": "create_alumina:nitrate",
+        "amount": 1.0
+      },
+      {
+        "ion": "create_alumina:hydrogen",
+        "amount": 4.0
+      }
+    ]
+  },
+  "products": {}
+}

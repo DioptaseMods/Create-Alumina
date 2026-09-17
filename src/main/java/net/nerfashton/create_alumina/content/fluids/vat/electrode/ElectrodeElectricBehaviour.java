@@ -8,6 +8,7 @@ import org.patryk3211.powergrid.electricity.base.ProxyElectricBehaviour;
 import org.patryk3211.powergrid.electricity.sim.node.OwnedFloatingNode;
 import org.patryk3211.powergrid.electricity.wire.BlockWireEndpoint;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 public class ElectrodeElectricBehaviour extends ProxyElectricBehaviour {
@@ -38,7 +39,20 @@ public class ElectrodeElectricBehaviour extends ProxyElectricBehaviour {
     }
 
     @Override
+    public List<OwnedFloatingNode> getExternalNodes() {
+        int term = terminalIndexSupplier.get();
+        if (hasTerminal(term)) {
+            OwnedFloatingNode node = getTerminal(term);
+            if (node != null) {
+                return List.of(node);
+            }
+        }
+        return List.of();
+    }
+
+    @Override
     public void refreshEndpoints() {
+        if (getWorld() == null) return;
         int term = terminalIndexSupplier.get();
         if (hasTerminal(term)) {
             OwnedFloatingNode node = getTerminal(term);

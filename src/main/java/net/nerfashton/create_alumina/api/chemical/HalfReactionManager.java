@@ -78,7 +78,7 @@ public class HalfReactionManager extends SimpleJsonResourceReloadListener {
             }
         }
 
-        // Support nested structure: "products": { "ions": [...], "items": [...] }
+        // Support nested structure: "products": { "ions": [...], "items": [...], "fluids": [...] }
         if (result.has("products") && result.get("products").isJsonObject()) {
             JsonObject products = result.getAsJsonObject("products");
             if (products.has("ions") && !result.has("product_ions")) {
@@ -86,6 +86,9 @@ public class HalfReactionManager extends SimpleJsonResourceReloadListener {
             }
             if (products.has("items") && !result.has("product_items")) {
                 result.add("product_items", products.get("items"));
+            }
+            if (products.has("fluids") && !result.has("product_fluids")) {
+                result.add("product_fluids", products.get("fluids"));
             }
         }
 

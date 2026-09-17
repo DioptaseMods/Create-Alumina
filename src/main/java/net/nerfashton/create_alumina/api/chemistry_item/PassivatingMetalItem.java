@@ -26,6 +26,7 @@ import java.util.Map;
  * - Strong acid (H⁺) via oxide dissolution
  * - Fluoride ions (F⁻) via complexation
  *
+ * Strongly oxidizing acids (such as Nitrate / Nitric Acid) enhance and heal passivation.
  * Once depassivated, the metal reacts at its full spontaneous thermodynamic rate.
  */
 public class PassivatingMetalItem extends Item {
@@ -62,6 +63,7 @@ public class PassivatingMetalItem extends Item {
         float f = solutes.getOrDefault(ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "fluoride"), 0.0f);
         float oh = solutes.getOrDefault(ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "hydroxide"), 0.0f);
         float h = solutes.getOrDefault(ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "hydrogen"), 0.0f);
+        float no3 = solutes.getOrDefault(ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "nitrate"), 0.0f);
 
         float tempFactor = Math.max(0.5f, tempK / 298.15f);
         float attackRate = 0.0f;
@@ -84,6 +86,9 @@ public class PassivatingMetalItem extends Item {
             current = Math.max(0.0f, current - delta);
         } else {
             float healRate = 0.02f * tempFactor * dt;
+            if (no3 > 0.01f) {
+                healRate += no3 * 0.1f * tempFactor * dt;
+            }
             current = Math.min(1.0f, current + healRate);
         }
 
@@ -121,6 +126,8 @@ public class PassivatingMetalItem extends Item {
             tooltipComponents.add(Component.literal("Oxide layer suppresses reactions.")
                     .withStyle(ChatFormatting.DARK_GRAY));
             tooltipComponents.add(Component.literal("Stripped by Cl⁻, OH⁻, F⁻, or strong acids.")
+                    .withStyle(ChatFormatting.DARK_GRAY));
+            tooltipComponents.add(Component.literal("Passivated by oxidizing acids (e.g. HNO₃).")
                     .withStyle(ChatFormatting.DARK_GRAY));
         } else {
             tooltipComponents.add(Component.literal("Hold Shift for chemical details")

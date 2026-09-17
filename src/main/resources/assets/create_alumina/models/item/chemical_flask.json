@@ -1,0 +1,14 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "create_alumina:item/chemical_flask"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "create_alumina:filled": 1.0
+      },
+      "model": "create_alumina:item/chemical_flask_filled"
+    }
+  ]
+}

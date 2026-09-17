@@ -1,0 +1,13 @@
+{
+  "e0": 1.36,
+  "electrons": 2,
+  "reactants": {},
+  "products": {
+    "ions": [
+      {
+        "ion": "create_alumina:chloride",
+        "amount": 2.0
+      }
+    ]
+  }
+}

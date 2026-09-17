@@ -61,18 +61,15 @@ public class CAItems {
 
     // Soluble Salt Items with Ksp and Ion Compositions
     public static final ItemEntry<SolubleSaltItem>
-            SALT_POWDER = saltEntry("salt_powder", "Salt Powder", new SoluteData(
-                    Map.of(modLoc("sodium"), 1.0f, modLoc("chloride"), 1.0f),
-                    36.0, 3.88f, 1.0f)),
             SODIUM_CHLORIDE = saltEntry("sodium_chloride", "Sodium Chloride", new SoluteData(
                     Map.of(modLoc("sodium"), 1.0f, modLoc("chloride"), 1.0f),
                     36.0, 3.88f, 1.0f)),
             COPPER_CHLORIDE = saltEntry("copper_chloride", "Copper(II) Chloride", new SoluteData(
                     Map.of(modLoc("copper"), 1.0f, modLoc("chloride"), 2.0f),
-                    5.0, -51.4f, 1.0f)),
+                    500.0, -51.4f, 1.0f)),
             COPPER_NITRATE = saltEntry("copper_nitrate", "Copper(II) Nitrate", new SoluteData(
                     Map.of(modLoc("copper"), 1.0f, modLoc("nitrate"), 2.0f),
-                    10.0, -45.0f, 1.0f)),
+                    1000.0, -45.0f, 1.0f)),
             SODIUM_HYDROXIDE = saltEntry("sodium_hydroxide", "Sodium Hydroxide", new SoluteData(
                     Map.of(modLoc("sodium"), 1.0f, modLoc("hydroxide"), 1.0f),
                     50.0, -44.5f, 1.0f)),
@@ -82,12 +79,15 @@ public class CAItems {
             COPPER_SULFATE = saltEntry("copper_sulfate", "Copper(II) Sulfate", new SoluteData(
                     Map.of(modLoc("copper"), 1.0f, modLoc("sulfate"), 1.0f),
                     1.4, -66.5f, 1.0f)),
+            COPPER_HYDROXIDE = saltEntry("copper_hydroxide", "Copper(II) Hydroxide", new SoluteData(
+                    Map.of(modLoc("copper"), 1.0f, modLoc("hydroxide"), 2.0f),
+                    1e-10, -15.0f, 1.0f)),
             IRON_SULFATE = saltEntry("iron_sulfate", "Iron(II) Sulfate", new SoluteData(
                     Map.of(modLoc("iron"), 1.0f, modLoc("sulfate"), 1.0f),
                     1.9, -16.8f, 1.0f)),
             IRON_CHLORIDE = saltEntry("iron_chloride", "Iron(III) Chloride", new SoluteData(
                     Map.of(modLoc("iron_iii"), 1.0f, modLoc("chloride"), 3.0f),
-                    5.6, -95.0f, 1.0f)),
+                    500.0, -95.0f, 1.0f)),
             POTASSIUM_CHLORIDE = saltEntry("potassium_chloride", "Potassium Chloride", new SoluteData(
                     Map.of(modLoc("potassium"), 1.0f, modLoc("chloride"), 1.0f),
                     4.8, 17.2f, 1.0f)),
@@ -102,13 +102,13 @@ public class CAItems {
                     0.04, 25.0f, 1.0f));
 
     public static final List<ItemEntry<SolubleSaltItem>> ALL_SALTS = List.of(
-            SALT_POWDER,
             SODIUM_CHLORIDE,
             COPPER_CHLORIDE,
             COPPER_NITRATE,
             SODIUM_HYDROXIDE,
             ALUMINUM_FLUORIDE,
             COPPER_SULFATE,
+            COPPER_HYDROXIDE,
             IRON_SULFATE,
             IRON_CHLORIDE,
             POTASSIUM_CHLORIDE,

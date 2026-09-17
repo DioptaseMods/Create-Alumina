@@ -10,10 +10,10 @@
     ]
   },
   "products": {
-    "items": [
+    "fluids": [
       {
-        "item": "create_alumina:aluminum_ingot",
-        "count": 1
+        "fluid": "create_alumina:molten_aluminum",
+        "amount": 100
       }
     ]
   }

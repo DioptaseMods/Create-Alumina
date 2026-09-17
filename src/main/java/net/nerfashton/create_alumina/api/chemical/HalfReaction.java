@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * Represents an electrochemical half-reaction written as a reduction:
- * Reactants + n e⁻ ⇌ Products
+ * Reactants + n e⁻ ⇄ Products
  * with standard reduction potential E° (in Volts).
  */
 public record HalfReaction(
@@ -23,17 +23,31 @@ public record HalfReaction(
         List<IonParticipant> reactantIons,
         List<ItemParticipant> reactantItems,
         List<IonParticipant> productIons,
-        List<ItemParticipant> productItems
+        List<ItemParticipant> productItems,
+        List<FluidParticipant> productFluids
 ) {
 
     public static final ResourceKey<net.minecraft.core.Registry<HalfReaction>> REGISTRY_KEY =
             ResourceKey.createRegistryKey(ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "half_reaction"));
+
+    public HalfReaction(
+            ResourceLocation id,
+            double standardPotential,
+            int electrons,
+            List<IonParticipant> reactantIons,
+            List<ItemParticipant> reactantItems,
+            List<IonParticipant> productIons,
+            List<ItemParticipant> productItems
+    ) {
+        this(id, standardPotential, electrons, reactantIons, reactantItems, productIons, productItems, List.of());
+    }
 
     public HalfReaction {
         reactantIons = List.copyOf(reactantIons);
         reactantItems = List.copyOf(reactantItems);
         productIons = List.copyOf(productIons);
         productItems = List.copyOf(productItems);
+        productFluids = List.copyOf(productFluids);
         if (electrons <= 0) {
             electrons = 1;
         }
@@ -61,6 +75,15 @@ public record HalfReaction(
         }
     }
 
+    public record FluidParticipant(ResourceLocation fluid, int amount) {
+        public static final Codec<FluidParticipant> CODEC = RecordCodecBuilder.create(instance ->
+                instance.group(
+                        ResourceLocation.CODEC.fieldOf("fluid").forGetter(FluidParticipant::fluid),
+                        Codec.INT.optionalFieldOf("amount", 100).forGetter(FluidParticipant::amount)
+                ).apply(instance, FluidParticipant::new)
+        );
+    }
+
     public static final Codec<HalfReaction> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     ResourceLocation.CODEC.optionalFieldOf("id", ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "unnamed"))
@@ -70,11 +93,12 @@ public record HalfReaction(
                     IonParticipant.CODEC.listOf().optionalFieldOf("reactant_ions", List.of()).forGetter(HalfReaction::reactantIons),
                     ItemParticipant.CODEC.listOf().optionalFieldOf("reactant_items", List.of()).forGetter(HalfReaction::reactantItems),
                     IonParticipant.CODEC.listOf().optionalFieldOf("product_ions", List.of()).forGetter(HalfReaction::productIons),
-                    ItemParticipant.CODEC.listOf().optionalFieldOf("product_items", List.of()).forGetter(HalfReaction::productItems)
+                    ItemParticipant.CODEC.listOf().optionalFieldOf("product_items", List.of()).forGetter(HalfReaction::productItems),
+                    FluidParticipant.CODEC.listOf().optionalFieldOf("product_fluids", List.of()).forGetter(HalfReaction::productFluids)
             ).apply(instance, HalfReaction::new)
     );
 
     public HalfReaction withId(ResourceLocation newId) {
-        return new HalfReaction(newId, standardPotential, electrons, reactantIons, reactantItems, productIons, productItems);
+        return new HalfReaction(newId, standardPotential, electrons, reactantIons, reactantItems, productIons, productItems, productFluids);
     }
 }

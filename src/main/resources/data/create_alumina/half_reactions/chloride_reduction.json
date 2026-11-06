@@ -1,7 +1,14 @@
 {
   "e0": 1.36,
   "electrons": 2,
-  "reactants": {},
+  "reactants": {
+    "gases": [
+      {
+        "gas": "cl2",
+        "amount": 1.0
+      }
+    ]
+  },
   "products": {
     "ions": [
       {

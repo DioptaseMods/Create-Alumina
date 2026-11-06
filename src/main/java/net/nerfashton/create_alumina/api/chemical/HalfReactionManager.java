@@ -67,7 +67,7 @@ public class HalfReactionManager extends SimpleJsonResourceReloadListener {
             result.add("e0", result.get("standard_potential"));
         }
 
-        // Support nested structure: "reactants": { "ions": [...], "items": [...] }
+        // Support nested structure: "reactants": { "ions": [...], "items": [...], "gases": [...] }
         if (result.has("reactants") && result.get("reactants").isJsonObject()) {
             JsonObject reactants = result.getAsJsonObject("reactants");
             if (reactants.has("ions") && !result.has("reactant_ions")) {
@@ -76,9 +76,12 @@ public class HalfReactionManager extends SimpleJsonResourceReloadListener {
             if (reactants.has("items") && !result.has("reactant_items")) {
                 result.add("reactant_items", reactants.get("items"));
             }
+            if (reactants.has("gases") && !result.has("reactant_gases")) {
+                result.add("reactant_gases", reactants.get("gases"));
+            }
         }
 
-        // Support nested structure: "products": { "ions": [...], "items": [...], "fluids": [...] }
+        // Support nested structure: "products": { "ions": [...], "items": [...], "fluids": [...], "gases": [...] }
         if (result.has("products") && result.get("products").isJsonObject()) {
             JsonObject products = result.getAsJsonObject("products");
             if (products.has("ions") && !result.has("product_ions")) {
@@ -89,6 +92,9 @@ public class HalfReactionManager extends SimpleJsonResourceReloadListener {
             }
             if (products.has("fluids") && !result.has("product_fluids")) {
                 result.add("product_fluids", products.get("fluids"));
+            }
+            if (products.has("gases") && !result.has("product_gases")) {
+                result.add("product_gases", products.get("gases"));
             }
         }
 

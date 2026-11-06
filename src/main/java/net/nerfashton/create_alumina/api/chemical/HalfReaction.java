@@ -22,9 +22,11 @@ public record HalfReaction(
         int electrons,
         List<IonParticipant> reactantIons,
         List<ItemParticipant> reactantItems,
+        List<GasParticipant> reactantGases,
         List<IonParticipant> productIons,
         List<ItemParticipant> productItems,
-        List<FluidParticipant> productFluids
+        List<FluidParticipant> productFluids,
+        List<GasParticipant> productGases
 ) {
 
     public static final ResourceKey<net.minecraft.core.Registry<HalfReaction>> REGISTRY_KEY =
@@ -39,15 +41,30 @@ public record HalfReaction(
             List<IonParticipant> productIons,
             List<ItemParticipant> productItems
     ) {
-        this(id, standardPotential, electrons, reactantIons, reactantItems, productIons, productItems, List.of());
+        this(id, standardPotential, electrons, reactantIons, reactantItems, List.of(), productIons, productItems, List.of(), List.of());
+    }
+
+    public HalfReaction(
+            ResourceLocation id,
+            double standardPotential,
+            int electrons,
+            List<IonParticipant> reactantIons,
+            List<ItemParticipant> reactantItems,
+            List<IonParticipant> productIons,
+            List<ItemParticipant> productItems,
+            List<FluidParticipant> productFluids
+    ) {
+        this(id, standardPotential, electrons, reactantIons, reactantItems, List.of(), productIons, productItems, productFluids, List.of());
     }
 
     public HalfReaction {
         reactantIons = List.copyOf(reactantIons);
         reactantItems = List.copyOf(reactantItems);
+        reactantGases = List.copyOf(reactantGases);
         productIons = List.copyOf(productIons);
         productItems = List.copyOf(productItems);
         productFluids = List.copyOf(productFluids);
+        productGases = List.copyOf(productGases);
         if (electrons <= 0) {
             electrons = 1;
         }
@@ -84,6 +101,15 @@ public record HalfReaction(
         );
     }
 
+    public record GasParticipant(String gas, float amount) {
+        public static final Codec<GasParticipant> CODEC = RecordCodecBuilder.create(instance ->
+                instance.group(
+                        Codec.STRING.fieldOf("gas").forGetter(GasParticipant::gas),
+                        Codec.FLOAT.optionalFieldOf("amount", 1.0f).forGetter(GasParticipant::amount)
+                ).apply(instance, GasParticipant::new)
+        );
+    }
+
     public static final Codec<HalfReaction> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     ResourceLocation.CODEC.optionalFieldOf("id", ResourceLocation.fromNamespaceAndPath(CreateAlumina.MOD_ID, "unnamed"))
@@ -92,13 +118,15 @@ public record HalfReaction(
                     Codec.INT.optionalFieldOf("electrons", 1).forGetter(HalfReaction::electrons),
                     IonParticipant.CODEC.listOf().optionalFieldOf("reactant_ions", List.of()).forGetter(HalfReaction::reactantIons),
                     ItemParticipant.CODEC.listOf().optionalFieldOf("reactant_items", List.of()).forGetter(HalfReaction::reactantItems),
+                    GasParticipant.CODEC.listOf().optionalFieldOf("reactant_gases", List.of()).forGetter(HalfReaction::reactantGases),
                     IonParticipant.CODEC.listOf().optionalFieldOf("product_ions", List.of()).forGetter(HalfReaction::productIons),
                     ItemParticipant.CODEC.listOf().optionalFieldOf("product_items", List.of()).forGetter(HalfReaction::productItems),
-                    FluidParticipant.CODEC.listOf().optionalFieldOf("product_fluids", List.of()).forGetter(HalfReaction::productFluids)
+                    FluidParticipant.CODEC.listOf().optionalFieldOf("product_fluids", List.of()).forGetter(HalfReaction::productFluids),
+                    GasParticipant.CODEC.listOf().optionalFieldOf("product_gases", List.of()).forGetter(HalfReaction::productGases)
             ).apply(instance, HalfReaction::new)
     );
 
     public HalfReaction withId(ResourceLocation newId) {
-        return new HalfReaction(newId, standardPotential, electrons, reactantIons, reactantItems, productIons, productItems, productFluids);
+        return new HalfReaction(newId, standardPotential, electrons, reactantIons, reactantItems, reactantGases, productIons, productItems, productFluids, productGases);
     }
 }

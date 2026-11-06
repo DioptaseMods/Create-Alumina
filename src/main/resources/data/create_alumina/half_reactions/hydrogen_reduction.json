@@ -9,5 +9,12 @@
       }
     ]
   },
-  "products": {}
+  "products": {
+    "gases": [
+      {
+        "gas": "h2",
+        "amount": 1.0
+      }
+    ]
+  }
 }

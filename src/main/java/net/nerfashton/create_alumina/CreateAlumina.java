@@ -23,6 +23,7 @@ import net.nerfashton.create_alumina.registry.CABlockEntities;
 import net.nerfashton.create_alumina.registry.CABlocks;
 import net.nerfashton.create_alumina.registry.CACreativeTabs;
 import net.nerfashton.create_alumina.registry.CAFluids;
+import net.nerfashton.create_alumina.registry.CAGases;
 import net.nerfashton.create_alumina.registry.CAItems;
 import org.slf4j.Logger;
 
@@ -51,6 +52,7 @@ public class CreateAlumina {
         CABlockEntities.init();
         CAItems.init();
         CAFluids.init();
+        CAGases.init();
 
         REGISTRATE.addDataGenerator(ProviderType.LANG, prov -> {
             prov.add("creativetab.create_alumina.items_tab", "Create Alumina");

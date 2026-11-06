@@ -20,16 +20,35 @@ public record AutonomousReaction(
         Optional<ResourceLocation> oxidation,
         List<HalfReaction.IonParticipant> reactantIons,
         List<HalfReaction.ItemParticipant> reactantItems,
+        List<HalfReaction.GasParticipant> reactantGases,
         List<HalfReaction.IonParticipant> productIons,
         List<HalfReaction.ItemParticipant> productItems,
+        List<HalfReaction.GasParticipant> productGases,
         float heatPerMol,
         float rate
 ) {
+    public AutonomousReaction(
+            ResourceLocation id,
+            String description,
+            Optional<ResourceLocation> reduction,
+            Optional<ResourceLocation> oxidation,
+            List<HalfReaction.IonParticipant> reactantIons,
+            List<HalfReaction.ItemParticipant> reactantItems,
+            List<HalfReaction.IonParticipant> productIons,
+            List<HalfReaction.ItemParticipant> productItems,
+            float heatPerMol,
+            float rate
+    ) {
+        this(id, description, reduction, oxidation, reactantIons, reactantItems, List.of(), productIons, productItems, List.of(), heatPerMol, rate);
+    }
+
     public AutonomousReaction {
         reactantIons = List.copyOf(reactantIons);
         reactantItems = List.copyOf(reactantItems);
+        reactantGases = List.copyOf(reactantGases);
         productIons = List.copyOf(productIons);
         productItems = List.copyOf(productItems);
+        productGases = List.copyOf(productGases);
         if (rate <= 0.0f) {
             rate = 0.05f;
         }
@@ -44,14 +63,16 @@ public record AutonomousReaction(
                     ResourceLocation.CODEC.optionalFieldOf("oxidation").forGetter(AutonomousReaction::oxidation),
                     HalfReaction.IonParticipant.CODEC.listOf().optionalFieldOf("reactant_ions", List.of()).forGetter(AutonomousReaction::reactantIons),
                     HalfReaction.ItemParticipant.CODEC.listOf().optionalFieldOf("reactant_items", List.of()).forGetter(AutonomousReaction::reactantItems),
+                    HalfReaction.GasParticipant.CODEC.listOf().optionalFieldOf("reactant_gases", List.of()).forGetter(AutonomousReaction::reactantGases),
                     HalfReaction.IonParticipant.CODEC.listOf().optionalFieldOf("product_ions", List.of()).forGetter(AutonomousReaction::productIons),
                     HalfReaction.ItemParticipant.CODEC.listOf().optionalFieldOf("product_items", List.of()).forGetter(AutonomousReaction::productItems),
+                    HalfReaction.GasParticipant.CODEC.listOf().optionalFieldOf("product_gases", List.of()).forGetter(AutonomousReaction::productGases),
                     Codec.FLOAT.optionalFieldOf("heat_per_mol", 0.0f).forGetter(AutonomousReaction::heatPerMol),
                     Codec.FLOAT.optionalFieldOf("rate", 0.05f).forGetter(AutonomousReaction::rate)
             ).apply(instance, AutonomousReaction::new)
     );
 
     public AutonomousReaction withId(ResourceLocation newId) {
-        return new AutonomousReaction(newId, description, reduction, oxidation, reactantIons, reactantItems, productIons, productItems, heatPerMol, rate);
+        return new AutonomousReaction(newId, description, reduction, oxidation, reactantIons, reactantItems, reactantGases, productIons, productItems, productGases, heatPerMol, rate);
     }
 }

@@ -13,5 +13,12 @@
       }
     ]
   },
-  "products": {}
+  "products": {
+    "gases": [
+      {
+        "gas": "no",
+        "amount": 1.0
+      }
+    ]
+  }
 }

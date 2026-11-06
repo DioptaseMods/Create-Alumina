@@ -67,11 +67,7 @@ public class CarbonElectrodeBlock extends HorizontalElectricBlock implements IBE
             ElectrodeType type = state.getValue(TYPE);
             TerminalBoundingBox base = type == ElectrodeType.ANODE ? NORTH_ANODE_TERMINAL : NORTH_CATHODE_TERMINAL;
             TerminalBoundingBox rotated = rotateToFacing(base, facing);
-            if (type == ElectrodeType.ANODE) {
-                return new TerminalBoundingBox[]{rotated, null};
-            } else {
-                return new TerminalBoundingBox[]{null, rotated};
-            }
+            return new TerminalBoundingBox[]{rotated};
         });
         builder.withShapeMapper(state -> SHAPER.get(state.getValue(HORIZONTAL_FACING)));
         setTerminalCollection(builder.build());
@@ -150,6 +146,9 @@ public class CarbonElectrodeBlock extends HorizontalElectricBlock implements IBE
 
     @Override
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hitResult) {
+        if (!stack.isEmpty()) {
+            return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        }
         return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
     }
 
@@ -208,9 +207,16 @@ public class CarbonElectrodeBlock extends HorizontalElectricBlock implements IBE
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
         if (state.getBlock() != newState.getBlock()) {
-            notifyVat(level, pos);
+            if (level.getBlockEntity(pos) instanceof CarbonElectrodeBlockEntity electrodeBE) {
+                if (electrodeBE.getElectricBehaviour() != null) {
+                    electrodeBE.getElectricBehaviour().breakConnections();
+                }
+            }
         }
         super.onRemove(state, level, pos, newState, isMoving);
+        if (state.getBlock() != newState.getBlock()) {
+            notifyVat(level, pos);
+        }
     }
 
     private void notifyVat(Level level, BlockPos pos) {

@@ -1,11 +1,17 @@
 package net.nerfashton.create_alumina.content.fluids.vat;
 
 import com.tterrag.registrate.util.entry.ItemEntry;
+import cute.ame.celsius.Fluid.Data.FluidConstants;
+import cute.ame.celsius.Fluid.Data.FluidNodeStore;
+import cute.ame.celsius.Fluid.Data.SpeciesTable;
+import cute.ame.celsius.Fluid.Level.FluidLevelData;
+import cute.ame.celsius.Fluid.Registry.FluidSpecies;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Containers;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
@@ -138,6 +144,12 @@ public class VatData {
             return;
         }
 
+        ServerLevel serverLevel = (ServerLevel) controller.getLevel();
+        FluidLevelData fluidLevelData = FluidLevelData.get(serverLevel);
+        int gasNodeId = controller.getOrCreateGasNode(serverLevel);
+        FluidNodeStore gasStore = fluidLevelData.store();
+        SpeciesTable speciesTable = FluidSpecies.active();
+
         boolean changed = false;
 
         // 1. Spontaneous acid-base neutralization (H+ + OH- -> H2O)
@@ -150,10 +162,10 @@ public class VatData {
         changed |= tickPrecipitation(controller, fluid, volumeLiters, itemHandler);
 
         // 4. Autonomous electrochemical redox reactions between half-reactions (galvanic & driven electrolysis)
-        changed |= tickHalfReactions(controller, fluid, volumeLiters, itemHandler);
+        changed |= tickHalfReactions(controller, fluid, volumeLiters, itemHandler, fluidLevelData, gasStore, gasNodeId, speciesTable);
 
         // 5. Explicit non-redox autonomous reactions (e.g. Bayer alumina digestion)
-        changed |= tickExplicitAutonomousReactions(controller, fluid, volumeLiters, itemHandler);
+        changed |= tickExplicitAutonomousReactions(controller, fluid, volumeLiters, itemHandler, fluidLevelData, gasStore, gasNodeId, speciesTable);
 
         if (changed) {
             controller.setChanged();
@@ -183,13 +195,7 @@ public class VatData {
     }
 
     /**
-     * Dissolves soluble items in the inventory into the vat fluid realistically:
-     * - Respects Ksp saturation limit (Qsp < Ksp)
-     * - Noyes-Whitney saturation deficit dissolution kinetics
-     * - Insoluble/sparingly soluble salts (Ksp <= 1e-4) do not dissolve in neutral solvents
-     * - Handles dissolution of Alumina in high-temperature Molten Cryolite
-     * - Uses the internal partial item buffer to maintain continuous charge balance
-     * - Fast & snappy dissolution scaling with surface area
+     * Dissolves soluble items in the inventory into the vat fluid realistically.
      */
     private boolean tickDissolution(ChemicalVatBlockEntity controller, FluidStack fluid, float volumeLiters, IItemHandler itemHandler) {
         boolean anyChanged = false;
@@ -336,9 +342,7 @@ public class VatData {
     }
 
     /**
-     * Precipitates sparingly soluble salts when ion concentrations exceed Ksp (Qsp > Ksp):
-     * e.g. Cu2+ + 2 OH- -> Cu(OH)2 (s)
-     * Excess ions crystallize into solid salt items and deposit into the vat inventory.
+     * Precipitates sparingly soluble salts when ion concentrations exceed Ksp (Qsp > Ksp).
      */
     private boolean tickPrecipitation(ChemicalVatBlockEntity controller, FluidStack fluid, float volumeLiters, IItemHandler itemHandler) {
         ChemicalComposition comp = fluid.get(ModDataComponents.CHEMICAL_COMPOSITION.get());
@@ -360,7 +364,6 @@ public class VatData {
             }
 
             double effectiveKsp = soluteData.ksp();
-            // Calculate ion product Qsp = product([ion]^coeff)
             double qsp = 1.0;
             double sumCoeff = 0.0;
             boolean hasAllIons = true;
@@ -383,14 +386,12 @@ public class VatData {
             double excessRatio = Math.pow(qsp / effectiveKsp, 1.0 / Math.max(1.0, sumCoeff)) - 1.0;
             double precipMoles = Math.min(64.0, Math.max(1.0, excessRatio * 0.5 * volumeLiters));
 
-            // Limit by available ion moles
             for (Map.Entry<ResourceLocation, Float> entry : soluteData.ions().entrySet()) {
                 float conc = solutes.getOrDefault(entry.getKey(), 0.0f);
                 double maxMoles = (conc * volumeLiters) / entry.getValue();
                 precipMoles = Math.min(precipMoles, maxMoles);
             }
 
-            // Snap close values to integer moles to prevent floating-point loss
             if (Math.abs(precipMoles - Math.round(precipMoles)) < 0.01) {
                 precipMoles = Math.round(precipMoles);
             }
@@ -426,16 +427,9 @@ public class VatData {
 
     /**
      * Executes autonomous spontaneous galvanic redox reactions and driven electrolysis
-     * between pairs of HalfReactions:
-     * Evaluates cell potential using the Nernst equation:
-     *   E_red = E0_red + (RT / nF) * ln(Q_red)
-     *   E_ox  = E0_ox  + (RT / nF) * ln(Q_ox)
-     *   E_cell = E_red - E_ox
-     * Combined with applied external voltage from attached electrodes:
-     *   E_driving = E_cell + V_applied
-     * Maintains continuous charge neutrality every tick via the partial item buffer.
+     * between pairs of HalfReactions with full Celsius gas integration.
      */
-    private boolean tickHalfReactions(ChemicalVatBlockEntity controller, FluidStack fluid, float volumeLiters, IItemHandler itemHandler) {
+    private boolean tickHalfReactions(ChemicalVatBlockEntity controller, FluidStack fluid, float volumeLiters, IItemHandler itemHandler, FluidLevelData fluidLevelData, FluidNodeStore gasStore, int gasNodeId, SpeciesTable speciesTable) {
         ChemicalComposition comp = fluid.get(ModDataComponents.CHEMICAL_COMPOSITION.get());
         if (comp == null) return false;
 
@@ -451,15 +445,15 @@ public class VatData {
         float appliedVoltage = hasElectrodes ? Math.max(0.0f, controller.getVoltage()) : 0.0f;
 
         for (HalfReaction hr1 : allHalfReactions) {
-            if (!canUndergoReduction(hr1, solutes, itemHandler)) continue;
+            if (!canUndergoReduction(hr1, solutes, itemHandler, gasStore, gasNodeId, speciesTable)) continue;
 
-            double eRed = calculateHalfReactionPotential(hr1, solutes, comp.temperature());
+            double eRed = calculateHalfReactionPotential(hr1, solutes, comp.temperature(), gasStore, gasNodeId, speciesTable);
 
             for (HalfReaction hr2 : allHalfReactions) {
                 if (hr1.id().equals(hr2.id())) continue;
-                if (!canUndergoOxidation(hr2, solutes, itemHandler)) continue;
+                if (!canUndergoOxidation(hr2, solutes, itemHandler, gasStore, gasNodeId, speciesTable)) continue;
 
-                double eOx = calculateHalfReactionPotential(hr2, solutes, comp.temperature());
+                double eOx = calculateHalfReactionPotential(hr2, solutes, comp.temperature(), gasStore, gasNodeId, speciesTable);
                 double eCell = eRed - eOx;
                 double drivingPotential = eCell + appliedVoltage;
 
@@ -486,33 +480,32 @@ public class VatData {
         }
         double molesElectrons = ChemistryAPI.calculateMolesElectronsTransferred(current, 0.05);
 
-        // Passivation throttling: Check if any participating item has a passive oxide layer
+        // Passivation throttling
         float passThrottle = getPassivationThrottle(bestReduction, bestOxidation, itemHandler, solutes, comp.temperature());
         molesElectrons *= passThrottle;
 
-        // Surface area scaling based on participating solid metal items in the vat
+        // Surface area scaling
         double surfaceFactor = getReactionSurfaceFactor(bestReduction, bestOxidation, itemHandler);
         molesElectrons *= surfaceFactor;
 
-        // Dynamic per-tick electron cap scaling with surface area so reactions are rapid and snappy
         double maxCap = Math.max(5.0, 5.0 * surfaceFactor);
         molesElectrons = Math.min(molesElectrons, maxCap);
 
-        // Limit moles of electrons by available reactants (ions and items in buffer/inventory) and output tank capacity
-        molesElectrons = limitElectronsByReduction(bestReduction, molesElectrons, solutes, volumeLiters, itemHandler, controller);
-        molesElectrons = limitElectronsByOxidation(bestOxidation, molesElectrons, solutes, volumeLiters, itemHandler);
+        // Limit moles of electrons by available reactants (ions, items, and gases) and output tank capacity
+        molesElectrons = limitElectronsByReduction(bestReduction, molesElectrons, solutes, volumeLiters, itemHandler, controller, gasStore, gasNodeId, speciesTable);
+        molesElectrons = limitElectronsByOxidation(bestOxidation, molesElectrons, solutes, volumeLiters, itemHandler, gasStore, gasNodeId, speciesTable);
 
         if (molesElectrons <= 1e-6) {
             return false;
         }
 
-        // Execute reduction: Reactants + n e- -> Products (deposits fluids in electrolysis output tank)
+        // Execute reduction: Reactants + n e- -> Products (deposits fluids in output tank and evolves product gases)
         double molesReduction = molesElectrons / bestReduction.electrons();
-        applyReduction(bestReduction, molesReduction, solutes, volumeLiters, itemHandler, controller);
+        applyReduction(bestReduction, molesReduction, solutes, volumeLiters, itemHandler, controller, fluidLevelData, gasStore, gasNodeId, speciesTable);
 
         // Execute oxidation (reverse of reduction): Products -> Reactants + n e-
         double molesOxidation = molesElectrons / bestOxidation.electrons();
-        applyOxidation(bestOxidation, molesOxidation, solutes, volumeLiters, itemHandler, controller);
+        applyOxidation(bestOxidation, molesOxidation, solutes, volumeLiters, itemHandler, controller, fluidLevelData, gasStore, gasNodeId, speciesTable);
 
         // Heat of reaction: Q = n * F * maxDrivingPotential (Joules)
         double joules = molesElectrons * ChemistryAPI.FARADAY_CONSTANT * maxDrivingPotential;
@@ -523,6 +516,12 @@ public class VatData {
         float neutHeat = ChemistryAPI.processReactions(solutes);
         if (neutHeat > 0.0001f) {
             deltaTemp += ChemistryAPI.calculateTemperatureChange(neutHeat, ChemistryAPI.getMass(fluid), ChemistryAPI.getSpecificHeat(fluid.getFluid()));
+        }
+
+        // Equilibrate gas temperature towards fluid temperature
+        if (gasNodeId != FluidNodeStore.INVALID) {
+            gasStore.setTemperature(gasNodeId, comp.temperature() + deltaTemp);
+            fluidLevelData.touch(gasNodeId);
         }
 
         // Recalculate color and update composition
@@ -547,25 +546,45 @@ public class VatData {
     /**
      * Calculates the dynamic reduction potential of a half-reaction using the Nernst equation:
      * E = E0 + (RT / nF) * ln(Q_red)
+     * Incorporates partial pressures for gas participants.
      */
-    private double calculateHalfReactionPotential(HalfReaction hr, Map<ResourceLocation, Float> solutes, float tempK) {
+    private double calculateHalfReactionPotential(HalfReaction hr, Map<ResourceLocation, Float> solutes, float tempK, FluidNodeStore store, int gasNodeId, SpeciesTable table) {
         double logTerm = 0.0;
         for (HalfReaction.IonParticipant ion : hr.reactantIons()) {
             double conc = Math.max(solutes.getOrDefault(ion.ion(), 0.0f), 1e-6);
             logTerm += ion.amount() * Math.log(conc);
         }
+        for (HalfReaction.GasParticipant gas : hr.reactantGases()) {
+            double pAtm = calculateGasPartialPressureAtm(store, gasNodeId, gas.gas(), tempK, table);
+            logTerm += gas.amount() * Math.log(pAtm);
+        }
         for (HalfReaction.IonParticipant ion : hr.productIons()) {
             double conc = Math.max(solutes.getOrDefault(ion.ion(), 0.0f), 1e-6);
             logTerm -= ion.amount() * Math.log(conc);
         }
+        for (HalfReaction.GasParticipant gas : hr.productGases()) {
+            double pAtm = calculateGasPartialPressureAtm(store, gasNodeId, gas.gas(), tempK, table);
+            logTerm -= gas.amount() * Math.log(pAtm);
+        }
         return ChemistryAPI.calculateNernstPotential(hr.standardPotential(), hr.electrons(), tempK, logTerm);
+    }
+
+    private double calculateGasPartialPressureAtm(FluidNodeStore store, int gasNodeId, String gasKey, float tempK, SpeciesTable table) {
+        if (gasNodeId == FluidNodeStore.INVALID) return 1.0;
+        int s = table.indexOf(gasKey);
+        if (s == SpeciesTable.UNKNOWN) return 1.0;
+        float moles = store.amount(gasNodeId, s);
+        float vol = store.volume(gasNodeId);
+        if (vol <= 0.0f || moles <= 1e-6f) return 1e-4;
+        double pAtm = moles * FluidConstants.R * tempK / vol;
+        return Math.max(1e-4, pAtm);
     }
 
     /**
      * Checks if a HalfReaction can undergo Reduction (oxidized reactants present in the vat).
      */
-    private boolean canUndergoReduction(HalfReaction hr, Map<ResourceLocation, Float> solutes, IItemHandler itemHandler) {
-        if (hr.reactantIons().isEmpty() && hr.reactantItems().isEmpty()) {
+    private boolean canUndergoReduction(HalfReaction hr, Map<ResourceLocation, Float> solutes, IItemHandler itemHandler, FluidNodeStore store, int gasNodeId, SpeciesTable table) {
+        if (hr.reactantIons().isEmpty() && hr.reactantItems().isEmpty() && hr.reactantGases().isEmpty()) {
             return false;
         }
         for (HalfReaction.IonParticipant ion : hr.reactantIons()) {
@@ -574,14 +593,21 @@ public class VatData {
         for (HalfReaction.ItemParticipant item : hr.reactantItems()) {
             if (getTotalAvailableItemMoles(itemHandler, item.item()) < 1e-4f) return false;
         }
+        if (!hr.reactantGases().isEmpty()) {
+            if (gasNodeId == FluidNodeStore.INVALID) return false;
+            for (HalfReaction.GasParticipant gas : hr.reactantGases()) {
+                int s = table.indexOf(gas.gas());
+                if (s == SpeciesTable.UNKNOWN || store.amount(gasNodeId, s) < 1e-4f) return false;
+            }
+        }
         return true;
     }
 
     /**
      * Checks if a HalfReaction can undergo Oxidation (reduced products present, running in reverse).
      */
-    private boolean canUndergoOxidation(HalfReaction hr, Map<ResourceLocation, Float> solutes, IItemHandler itemHandler) {
-        if (hr.productIons().isEmpty() && hr.productItems().isEmpty()) {
+    private boolean canUndergoOxidation(HalfReaction hr, Map<ResourceLocation, Float> solutes, IItemHandler itemHandler, FluidNodeStore store, int gasNodeId, SpeciesTable table) {
+        if (hr.productIons().isEmpty() && hr.productItems().isEmpty() && hr.productGases().isEmpty()) {
             return false;
         }
         for (HalfReaction.IonParticipant ion : hr.productIons()) {
@@ -590,10 +616,17 @@ public class VatData {
         for (HalfReaction.ItemParticipant item : hr.productItems()) {
             if (getTotalAvailableItemMoles(itemHandler, item.item()) < 1e-4f) return false;
         }
+        if (!hr.productGases().isEmpty()) {
+            if (gasNodeId == FluidNodeStore.INVALID) return false;
+            for (HalfReaction.GasParticipant gas : hr.productGases()) {
+                int s = table.indexOf(gas.gas());
+                if (s == SpeciesTable.UNKNOWN || store.amount(gasNodeId, s) < 1e-4f) return false;
+            }
+        }
         return true;
     }
 
-    private double limitElectronsByReduction(HalfReaction hr, double molesE, Map<ResourceLocation, Float> solutes, float volumeLiters, IItemHandler itemHandler, ChemicalVatBlockEntity controller) {
+    private double limitElectronsByReduction(HalfReaction hr, double molesE, Map<ResourceLocation, Float> solutes, float volumeLiters, IItemHandler itemHandler, ChemicalVatBlockEntity controller, FluidNodeStore store, int gasNodeId, SpeciesTable table) {
         double maxE = molesE;
         for (HalfReaction.IonParticipant ion : hr.reactantIons()) {
             float conc = solutes.getOrDefault(ion.ion(), 0.0f);
@@ -605,6 +638,14 @@ public class VatData {
             float available = getTotalAvailableItemMoles(itemHandler, item.item());
             double eAvailable = ((double) available / item.count()) * hr.electrons();
             maxE = Math.min(maxE, eAvailable);
+        }
+        if (gasNodeId != FluidNodeStore.INVALID) {
+            for (HalfReaction.GasParticipant gas : hr.reactantGases()) {
+                int s = table.indexOf(gas.gas());
+                float available = (s != SpeciesTable.UNKNOWN) ? store.amount(gasNodeId, s) : 0.0f;
+                double eAvailable = ((double) available / gas.amount()) * hr.electrons();
+                maxE = Math.min(maxE, eAvailable);
+            }
         }
         if (!hr.productFluids().isEmpty()) {
             int space = controller.getOutputTank().getSpace();
@@ -619,7 +660,7 @@ public class VatData {
         return Math.max(0.0, maxE);
     }
 
-    private double limitElectronsByOxidation(HalfReaction hr, double molesE, Map<ResourceLocation, Float> solutes, float volumeLiters, IItemHandler itemHandler) {
+    private double limitElectronsByOxidation(HalfReaction hr, double molesE, Map<ResourceLocation, Float> solutes, float volumeLiters, IItemHandler itemHandler, FluidNodeStore store, int gasNodeId, SpeciesTable table) {
         double maxE = molesE;
         for (HalfReaction.IonParticipant ion : hr.productIons()) {
             float conc = solutes.getOrDefault(ion.ion(), 0.0f);
@@ -632,10 +673,18 @@ public class VatData {
             double eAvailable = ((double) available / item.count()) * hr.electrons();
             maxE = Math.min(maxE, eAvailable);
         }
+        if (gasNodeId != FluidNodeStore.INVALID) {
+            for (HalfReaction.GasParticipant gas : hr.productGases()) {
+                int s = table.indexOf(gas.gas());
+                float available = (s != SpeciesTable.UNKNOWN) ? store.amount(gasNodeId, s) : 0.0f;
+                double eAvailable = ((double) available / gas.amount()) * hr.electrons();
+                maxE = Math.min(maxE, eAvailable);
+            }
+        }
         return Math.max(0.0, maxE);
     }
 
-    private void applyReduction(HalfReaction hr, double molesReaction, Map<ResourceLocation, Float> solutes, float volumeLiters, IItemHandler itemHandler, ChemicalVatBlockEntity controller) {
+    private void applyReduction(HalfReaction hr, double molesReaction, Map<ResourceLocation, Float> solutes, float volumeLiters, IItemHandler itemHandler, ChemicalVatBlockEntity controller, FluidLevelData fluidLevelData, FluidNodeStore store, int gasNodeId, SpeciesTable table) {
         // Consume reactant ions
         for (HalfReaction.IonParticipant ion : hr.reactantIons()) {
             float current = solutes.getOrDefault(ion.ion(), 0.0f);
@@ -651,6 +700,19 @@ public class VatData {
         // Consume reactant items from buffer (if any solid item is being reduced)
         for (HalfReaction.ItemParticipant item : hr.reactantItems()) {
             consumeFromItemBuffer(itemHandler, item.item(), (float) (molesReaction * item.count()));
+        }
+
+        // Consume reactant gases
+        if (gasNodeId != FluidNodeStore.INVALID) {
+            for (HalfReaction.GasParticipant gas : hr.reactantGases()) {
+                int s = table.indexOf(gas.gas());
+                if (s != SpeciesTable.UNKNOWN) {
+                    float consumed = (float) (molesReaction * gas.amount());
+                    float current = store.amount(gasNodeId, s);
+                    store.setAmount(gasNodeId, s, Math.max(0.0f, current - consumed));
+                    fluidLevelData.touch(gasNodeId);
+                }
+            }
         }
 
         // Produce product ions
@@ -669,9 +731,21 @@ public class VatData {
         for (HalfReaction.FluidParticipant fluidPart : hr.productFluids()) {
             produceFluidMoles(fluidPart.fluid(), (float) (molesReaction * fluidPart.amount()), controller);
         }
+
+        // Produce product gases (e.g. H2, O2, Cl2, NO)
+        if (gasNodeId != FluidNodeStore.INVALID) {
+            for (HalfReaction.GasParticipant gas : hr.productGases()) {
+                int s = table.indexOf(gas.gas());
+                if (s != SpeciesTable.UNKNOWN) {
+                    float produced = (float) (molesReaction * gas.amount());
+                    store.add(gasNodeId, s, produced);
+                    fluidLevelData.touch(gasNodeId);
+                }
+            }
+        }
     }
 
-    private void applyOxidation(HalfReaction hr, double molesReaction, Map<ResourceLocation, Float> solutes, float volumeLiters, IItemHandler itemHandler, ChemicalVatBlockEntity controller) {
+    private void applyOxidation(HalfReaction hr, double molesReaction, Map<ResourceLocation, Float> solutes, float volumeLiters, IItemHandler itemHandler, ChemicalVatBlockEntity controller, FluidLevelData fluidLevelData, FluidNodeStore store, int gasNodeId, SpeciesTable table) {
         // Reverse of reduction: consumes product side, produces reactant side
         for (HalfReaction.IonParticipant ion : hr.productIons()) {
             float current = solutes.getOrDefault(ion.ion(), 0.0f);
@@ -689,6 +763,19 @@ public class VatData {
             consumeFromItemBuffer(itemHandler, item.item(), (float) (molesReaction * item.count()));
         }
 
+        // Consume product gases
+        if (gasNodeId != FluidNodeStore.INVALID) {
+            for (HalfReaction.GasParticipant gas : hr.productGases()) {
+                int s = table.indexOf(gas.gas());
+                if (s != SpeciesTable.UNKNOWN) {
+                    float consumed = (float) (molesReaction * gas.amount());
+                    float current = store.amount(gasNodeId, s);
+                    store.setAmount(gasNodeId, s, Math.max(0.0f, current - consumed));
+                    fluidLevelData.touch(gasNodeId);
+                }
+            }
+        }
+
         // Produce reactant ions (metal cations entering the fluid with continuous charge balance)
         for (HalfReaction.IonParticipant ion : hr.reactantIons()) {
             float current = solutes.getOrDefault(ion.ion(), 0.0f);
@@ -699,12 +786,25 @@ public class VatData {
         for (HalfReaction.ItemParticipant item : hr.reactantItems()) {
             produceItemMoles(itemHandler, item.item(), (float) (molesReaction * item.count()), controller);
         }
+
+        // Produce reactant gases (e.g. Cl2 from 2Cl- -> Cl2 + 2e-)
+        if (gasNodeId != FluidNodeStore.INVALID) {
+            for (HalfReaction.GasParticipant gas : hr.reactantGases()) {
+                int s = table.indexOf(gas.gas());
+                if (s != SpeciesTable.UNKNOWN) {
+                    float produced = (float) (molesReaction * gas.amount());
+                    store.add(gasNodeId, s, produced);
+                    fluidLevelData.touch(gasNodeId);
+                }
+            }
+        }
     }
 
     /**
-     * Executes explicit autonomous reactions defined in JSON (e.g. non-redox Bayer alumina digestion).
+     * Executes explicit autonomous reactions defined in JSON (e.g. non-redox Bayer alumina digestion)
+     * with full Celsius gas integration.
      */
-    private boolean tickExplicitAutonomousReactions(ChemicalVatBlockEntity controller, FluidStack fluid, float volumeLiters, IItemHandler itemHandler) {
+    private boolean tickExplicitAutonomousReactions(ChemicalVatBlockEntity controller, FluidStack fluid, float volumeLiters, IItemHandler itemHandler, FluidLevelData fluidLevelData, FluidNodeStore gasStore, int gasNodeId, SpeciesTable speciesTable) {
         ChemicalComposition comp = fluid.get(ModDataComponents.CHEMICAL_COMPOSITION.get());
         if (comp == null) return false;
 
@@ -715,7 +815,7 @@ public class VatData {
         boolean anyChanged = false;
 
         for (AutonomousReaction ar : reactions) {
-            if (ar.reactantIons().isEmpty() && ar.reactantItems().isEmpty()) {
+            if (ar.reactantIons().isEmpty() && ar.reactantItems().isEmpty() && ar.reactantGases().isEmpty()) {
                 continue;
             }
 
@@ -737,6 +837,18 @@ public class VatData {
             }
             if (!canRun) continue;
 
+            if (!ar.reactantGases().isEmpty()) {
+                if (gasNodeId == FluidNodeStore.INVALID) continue;
+                for (HalfReaction.GasParticipant gas : ar.reactantGases()) {
+                    int s = speciesTable.indexOf(gas.gas());
+                    if (s == SpeciesTable.UNKNOWN || gasStore.amount(gasNodeId, s) < 1e-4f) {
+                        canRun = false;
+                        break;
+                    }
+                }
+                if (!canRun) continue;
+            }
+
             // Surface area scaling based on reactant items in the vat (including buffer)
             int solidItems = 0;
             for (HalfReaction.ItemParticipant p : ar.reactantItems()) {
@@ -746,10 +858,9 @@ public class VatData {
 
             // Passivation throttling for explicit reactions
             float passThrottle = getExplicitReactionPassivationThrottle(ar, itemHandler, solutes, comp.temperature());
-            // Fast rate: 10x boosted for rapid and snappy gameplay
             double rate = Math.min(ar.rate() * 10.0 * surfaceFactor, 5.0 * surfaceFactor) * passThrottle;
 
-            // Limit rate by available ions and items
+            // Limit rate by available ions, items, and gases
             for (HalfReaction.IonParticipant ion : ar.reactantIons()) {
                 float conc = solutes.getOrDefault(ion.ion(), 0.0f);
                 double maxMoles = (conc * volumeLiters) / ion.amount();
@@ -759,6 +870,14 @@ public class VatData {
                 float available = getTotalAvailableItemMoles(itemHandler, item.item());
                 double maxMoles = available / item.count();
                 rate = Math.min(rate, maxMoles);
+            }
+            if (gasNodeId != FluidNodeStore.INVALID) {
+                for (HalfReaction.GasParticipant gas : ar.reactantGases()) {
+                    int s = speciesTable.indexOf(gas.gas());
+                    float available = (s != SpeciesTable.UNKNOWN) ? gasStore.amount(gasNodeId, s) : 0.0f;
+                    double maxMoles = available / gas.amount();
+                    rate = Math.min(rate, maxMoles);
+                }
             }
 
             if (rate <= 1e-6) continue;
@@ -778,6 +897,18 @@ public class VatData {
                 consumeFromItemBuffer(itemHandler, item.item(), (float) (rate * item.count()));
             }
 
+            if (gasNodeId != FluidNodeStore.INVALID) {
+                for (HalfReaction.GasParticipant gas : ar.reactantGases()) {
+                    int s = speciesTable.indexOf(gas.gas());
+                    if (s != SpeciesTable.UNKNOWN) {
+                        float consumed = (float) (rate * gas.amount());
+                        float cur = gasStore.amount(gasNodeId, s);
+                        gasStore.setAmount(gasNodeId, s, Math.max(0.0f, cur - consumed));
+                        fluidLevelData.touch(gasNodeId);
+                    }
+                }
+            }
+
             for (HalfReaction.IonParticipant ion : ar.productIons()) {
                 float current = solutes.getOrDefault(ion.ion(), 0.0f);
                 float produced = (float) ((rate * ion.amount()) / volumeLiters);
@@ -786,6 +917,17 @@ public class VatData {
 
             for (HalfReaction.ItemParticipant item : ar.productItems()) {
                 produceItemMoles(itemHandler, item.item(), (float) (rate * item.count()), controller);
+            }
+
+            if (gasNodeId != FluidNodeStore.INVALID) {
+                for (HalfReaction.GasParticipant gas : ar.productGases()) {
+                    int s = speciesTable.indexOf(gas.gas());
+                    if (s != SpeciesTable.UNKNOWN) {
+                        float produced = (float) (rate * gas.amount());
+                        gasStore.add(gasNodeId, s, produced);
+                        fluidLevelData.touch(gasNodeId);
+                    }
+                }
             }
 
             if (Math.abs(ar.heatPerMol()) > 0.01f) {

@@ -9,6 +9,12 @@ import com.simibubi.create.foundation.blockEntity.behaviour.inventory.VersionedI
 import com.simibubi.create.foundation.fluid.SmartFluidTank;
 import com.simibubi.create.foundation.mixin.accessor.ItemStackHandlerAccessor;
 import com.simibubi.create.foundation.utility.SameSizeCombinedInvWrapper;
+import cute.ame.celsius.Fluid.BlockEntity.IFluidVesselBlockEntity;
+import cute.ame.celsius.Fluid.Data.FluidNodeStore;
+import cute.ame.celsius.Fluid.Data.SpeciesTable;
+import cute.ame.celsius.Fluid.Helper.VesselNodes;
+import cute.ame.celsius.Fluid.Level.FluidLevelData;
+import cute.ame.celsius.Fluid.Registry.FluidSpecies;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.catnip.nbt.NBTHelper;
 import net.minecraft.ChatFormatting;
@@ -19,6 +25,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Clearable;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -45,13 +52,16 @@ import net.nerfashton.create_alumina.content.fluids.vat.electrode.CarbonElectrod
 import net.nerfashton.create_alumina.content.fluids.vat.electrode.ElectrodeType;
 import org.patryk3211.powergrid.electricity.base.ElectricBlockEntity;
 import org.patryk3211.powergrid.electricity.sim.ElectricWire;
+import org.patryk3211.powergrid.electricity.sim.node.FloatingNode;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
-public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHaveGoggleInformation, IMultiBlockEntityContainer.Fluid, IMultiBlockEntityContainer.Inventory, Clearable {
+public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IFluidVesselBlockEntity, IHaveGoggleInformation, IMultiBlockEntityContainer.Fluid, IMultiBlockEntityContainer.Inventory, Clearable {
 
     private static final int MAX_SIZE = 5;
     private static final int DEFAULT_CAPACITY_MULTIPLIER = 8000;
@@ -65,6 +75,16 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     protected ItemStackHandler inventory;
 
     protected final VatData vatData = new VatData();
+
+    // Celsius Gas Vessel state
+    protected long nodeHandle = -1L;
+    protected float burstPressure = 0.0f;
+
+    // Client-side synced gas summary for goggles
+    protected float clientGasPressure = 0f;
+    protected float clientGasTemperature = 0f;
+    protected float clientGasMoles = 0f;
+    protected final Map<String, Float> clientGasSpecies = new LinkedHashMap<>();
 
     protected BlockPos controller;
     protected BlockPos lastKnownPos;
@@ -83,12 +103,15 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     private LerpedFloat fluidLevel;
 
     // PowerGrid electrolysis circuit state
-    protected ElectricWire electrolysisWire;
+    protected List<ElectricWire> anodeWires;
+    protected List<ElectricWire> cathodeWires;
     protected float voltage = 0f;
     protected float currentAmps = 0f;
 
     public ChemicalVatBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
+        if (anodeWires == null) anodeWires = new ArrayList<>();
+        if (cathodeWires == null) cathodeWires = new ArrayList<>();
         tankInventory = createInventory();
         outputTankInventory = createOutputInventory();
         inventory = new ItemStackHandler(SLOTS_PER_BLOCK) {
@@ -106,6 +129,16 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
         refreshCapabilities();
     }
 
+    public List<ElectricWire> getAnodeWires() {
+        if (anodeWires == null) anodeWires = new ArrayList<>();
+        return anodeWires;
+    }
+
+    public List<ElectricWire> getCathodeWires() {
+        if (cathodeWires == null) cathodeWires = new ArrayList<>();
+        return cathodeWires;
+    }
+
     public VatData getVatData() {
         return vatData;
     }
@@ -116,6 +149,94 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
 
     public float getCurrentAmps() {
         return currentAmps;
+    }
+
+    @Override
+    public long getNodeHandle() {
+        if (!isController()) {
+            ChemicalVatBlockEntity ctrl = getControllerBE();
+            if (ctrl != null) {
+                return ctrl.getNodeHandle();
+            }
+        }
+        return this.nodeHandle;
+    }
+
+    @Override
+    public void setNodeHandle(long handle) {
+        if (isController()) {
+            this.nodeHandle = handle;
+            setChanged();
+        } else {
+            ChemicalVatBlockEntity ctrl = getControllerBE();
+            if (ctrl != null) {
+                ctrl.setNodeHandle(handle);
+            }
+        }
+    }
+
+    @Override
+    public float getBurstPressure() {
+        return this.burstPressure;
+    }
+
+    @Override
+    public void setBurstPressure(float pressure) {
+        this.burstPressure = pressure;
+        setChanged();
+    }
+
+    public int getOrCreateGasNode(ServerLevel serverLevel) {
+        if (!isController()) {
+            ChemicalVatBlockEntity ctrl = getControllerBE();
+            return ctrl != null ? ctrl.getOrCreateGasNode(serverLevel) : FluidNodeStore.INVALID;
+        }
+        FluidLevelData data = FluidLevelData.get(serverLevel);
+        int nodeId = data.store().resolve(this.nodeHandle);
+        if (nodeId == FluidNodeStore.INVALID) {
+            float totalVolumeLitres = getTotalTankSize() * 1000.0f;
+            nodeId = data.store().create(totalVolumeLitres, cute.ame.celsius.Core.Thermal.Ambient.of(serverLevel).temperatureK());
+            this.nodeHandle = data.store().handle(nodeId);
+            data.graph().invalidate();
+            setChanged();
+        }
+        return nodeId;
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        if (this.level instanceof ServerLevel serverLevel) {
+            rollBurstPressure(serverLevel);
+            if (isController()) {
+                VesselNodes.onLoaded(serverLevel, this.worldPosition, this);
+            } else {
+                FluidLevelData.get(serverLevel).graph().track(this.worldPosition);
+            }
+        }
+    }
+
+    @Override
+    public void remove() {
+        if (this.level instanceof ServerLevel serverLevel) {
+            VesselNodes.onUnloaded(serverLevel, this.worldPosition);
+            if (isController() && this.nodeHandle != -1L) {
+                FluidLevelData data = FluidLevelData.get(serverLevel);
+                int nodeId = data.store().resolve(this.nodeHandle);
+                if (nodeId != FluidNodeStore.INVALID) {
+                    data.store().destroy(nodeId);
+                }
+            }
+        }
+        super.remove();
+    }
+
+    @Override
+    public void onChunkUnloaded() {
+        if (this.level instanceof ServerLevel serverLevel) {
+            VesselNodes.onUnloaded(serverLevel, this.worldPosition);
+        }
+        super.onChunkUnloaded();
     }
 
     protected SmartFluidTank createInventory() {
@@ -190,20 +311,76 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
             fluidLevel.tickChaser();
 
         if (level != null && !level.isClientSide && isController()) {
-            if (hasElectrode(ElectrodeType.ANODE) && hasElectrode(ElectrodeType.CATHODE) && electrolysisWire == null) {
+            if (anodeWires == null) anodeWires = new ArrayList<>();
+            if (cathodeWires == null) cathodeWires = new ArrayList<>();
+
+            boolean hasAnode = hasElectrode(ElectrodeType.ANODE);
+            boolean hasCathode = hasElectrode(ElectrodeType.CATHODE);
+            if (hasAnode && hasCathode && (anodeWires.isEmpty() || cathodeWires.isEmpty())) {
+                onElectrodeChanged();
+            } else if ((!hasAnode || !hasCathode) && (!anodeWires.isEmpty() || !cathodeWires.isEmpty())) {
                 onElectrodeChanged();
             }
-            if (electrolysisWire != null) {
-                this.voltage = (float) electrolysisWire.potentialDifference();
-                this.currentAmps = (float) electrolysisWire.current();
+
+            float prevVoltage = this.voltage;
+            float prevCurrent = this.currentAmps;
+
+            if (!anodeWires.isEmpty() && !cathodeWires.isEmpty()) {
                 float targetResistance = calculateElectrolyteResistance();
-                if (Math.abs(electrolysisWire.getResistance() - targetResistance) > 0.05f) {
-                    electrolysisWire.setResistance(targetResistance);
+                float rAnode = Math.max(0.05f, (targetResistance * 0.5f) * anodeWires.size());
+                float rCathode = Math.max(0.05f, (targetResistance * 0.5f) * cathodeWires.size());
+
+                for (ElectricWire wire : anodeWires) {
+                    if (Math.abs(wire.getResistance() - rAnode) > 0.05f) {
+                        wire.setResistance(rAnode);
+                    }
+                }
+                for (ElectricWire wire : cathodeWires) {
+                    if (Math.abs(wire.getResistance() - rCathode) > 0.05f) {
+                        wire.setResistance(rCathode);
+                    }
+                }
+
+                double totalCurrentAnode = 0;
+                double totalPowerAnode = 0;
+                double maxAnodeV = 0;
+                for (ElectricWire wire : anodeWires) {
+                    double i = Math.abs(wire.current());
+                    double v = Math.abs(wire.potentialDifference());
+                    totalCurrentAnode += i;
+                    totalPowerAnode += v * i;
+                    if (v > maxAnodeV) maxAnodeV = v;
+                }
+
+                double totalCurrentCathode = 0;
+                double totalPowerCathode = 0;
+                double maxCathodeV = 0;
+                for (ElectricWire wire : cathodeWires) {
+                    double i = Math.abs(wire.current());
+                    double v = Math.abs(wire.potentialDifference());
+                    totalCurrentCathode += i;
+                    totalPowerCathode += v * i;
+                    if (v > maxCathodeV) maxCathodeV = v;
+                }
+
+                this.currentAmps = (float) ((totalCurrentAnode + totalCurrentCathode) * 0.5);
+                if (this.currentAmps > 0.001f) {
+                    this.voltage = (float) ((totalPowerAnode + totalPowerCathode) / this.currentAmps);
+                } else {
+                    this.voltage = (float) (maxAnodeV + maxCathodeV);
                 }
             } else {
                 this.voltage = 0f;
                 this.currentAmps = 0f;
             }
+
+            boolean voltageChanged = Math.abs(this.voltage - prevVoltage) > 0.01f || (this.voltage == 0f && prevVoltage != 0f);
+            boolean currentChanged = Math.abs(this.currentAmps - prevCurrent) > 0.005f || (this.currentAmps == 0f && prevCurrent != 0f);
+            if (voltageChanged || currentChanged) {
+                setChanged();
+                sendData();
+            }
+
             vatData.tick(this);
         }
     }
@@ -285,6 +462,23 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
             state = state.setValue(ChemicalVatBlock.BOTTOM, true);
             state = state.setValue(ChemicalVatBlock.TOP, true);
             getLevel().setBlock(worldPosition, state, 22);
+        }
+
+        if (level instanceof ServerLevel serverLevel) {
+            FluidLevelData data = FluidLevelData.get(serverLevel);
+            if (!keepContents) {
+                if (this.nodeHandle != -1L) {
+                    int oldNodeId = data.store().resolve(this.nodeHandle);
+                    if (oldNodeId != FluidNodeStore.INVALID) {
+                        data.store().destroy(oldNodeId);
+                    }
+                    this.nodeHandle = -1L;
+                }
+            }
+            if (this.nodeHandle == -1L) {
+                VesselNodes.onLoaded(serverLevel, worldPosition, this);
+            }
+            data.graph().invalidate();
         }
 
         refreshCapabilities();
@@ -412,6 +606,33 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
     public void setController(BlockPos controller) {
         if (level.isClientSide && !isVirtual())
             return;
+        if (controller.equals(this.controller))
+            return;
+
+        // When becoming a slave, transfer any remaining gas to controller and destroy local node
+        if (level instanceof ServerLevel serverLevel && this.nodeHandle != -1L) {
+            FluidLevelData data = FluidLevelData.get(serverLevel);
+            int oldNodeId = data.store().resolve(this.nodeHandle);
+            if (oldNodeId != FluidNodeStore.INVALID) {
+                BlockEntity ctrlEntity = level.getBlockEntity(controller);
+                if (ctrlEntity instanceof ChemicalVatBlockEntity ctrlBE) {
+                    int ctrlNodeId = data.store().resolve(ctrlBE.getNodeHandle());
+                    if (ctrlNodeId != FluidNodeStore.INVALID && ctrlNodeId != oldNodeId) {
+                        SpeciesTable table = FluidSpecies.active();
+                        for (int s = 0; s < table.size(); s++) {
+                            float amt = data.store().amount(oldNodeId, s);
+                            if (amt > 0) {
+                                data.store().add(ctrlNodeId, s, amt);
+                            }
+                        }
+                        data.touch(ctrlNodeId);
+                    }
+                }
+                data.store().destroy(oldNodeId);
+            }
+            this.nodeHandle = -1L;
+        }
+
         this.controller = controller;
         refreshCapabilities();
         setChanged();
@@ -437,6 +658,34 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
             controller = NBTHelper.readBlockPos(compound, "Controller");
 
         inventory.deserializeNBT(registries, compound.getCompound("Inventory"));
+
+        if (!clientPacket) {
+            if (compound.contains("node")) {
+                this.nodeHandle = compound.getLong("node");
+            } else {
+                this.nodeHandle = -1L;
+            }
+            this.burstPressure = compound.getFloat("burst");
+        } else {
+            if (compound.contains("ClientGasData")) {
+                CompoundTag gasTag = compound.getCompound("ClientGasData");
+                this.clientGasPressure = gasTag.getFloat("Pressure");
+                this.clientGasTemperature = gasTag.getFloat("Temperature");
+                this.clientGasMoles = gasTag.getFloat("Moles");
+                this.clientGasSpecies.clear();
+                if (gasTag.contains("Species")) {
+                    CompoundTag speciesTag = gasTag.getCompound("Species");
+                    for (String key : speciesTag.getAllKeys()) {
+                        clientGasSpecies.put(key, speciesTag.getFloat(key));
+                    }
+                }
+            } else {
+                this.clientGasPressure = 0f;
+                this.clientGasTemperature = 0f;
+                this.clientGasMoles = 0f;
+                this.clientGasSpecies.clear();
+            }
+        }
 
         if (isController()) {
             width = compound.getInt("Size");
@@ -514,6 +763,32 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
         }
 
         compound.put("Inventory", inventory.serializeNBT(registries));
+
+        if (!clientPacket) {
+            compound.putLong("node", this.nodeHandle);
+            compound.putFloat("burst", this.burstPressure);
+        } else if (isController() && level instanceof ServerLevel serverLevel) {
+            FluidLevelData data = FluidLevelData.getIfPresent(serverLevel);
+            if (data != null && nodeHandle != -1L) {
+                int nodeId = data.store().resolve(nodeHandle);
+                if (nodeId != FluidNodeStore.INVALID) {
+                    CompoundTag gasTag = new CompoundTag();
+                    gasTag.putFloat("Pressure", (float) data.store().pressure(nodeId));
+                    gasTag.putFloat("Temperature", data.store().temperature(nodeId));
+                    gasTag.putFloat("Moles", data.store().moles(nodeId));
+                    SpeciesTable table = FluidSpecies.active();
+                    CompoundTag speciesTag = new CompoundTag();
+                    for (int s = 0; s < table.size(); s++) {
+                        float amt = data.store().amount(nodeId, s);
+                        if (amt > 0.001f) {
+                            speciesTag.putFloat(table.key(s), amt);
+                        }
+                    }
+                    gasTag.put("Species", speciesTag);
+                    compound.put("ClientGasData", gasTag);
+                }
+            }
+        }
 
         super.write(compound, registries, clientPacket);
 
@@ -594,6 +869,34 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
             state = state.setValue(ChemicalVatBlock.TOP, getController().getY() + height - 1 == getBlockPos().getY());
             level.setBlock(getBlockPos(), state, Block.UPDATE_CLIENTS | Block.UPDATE_INVISIBLE);
         }
+
+        if (level instanceof ServerLevel serverLevel) {
+            FluidLevelData data = FluidLevelData.get(serverLevel);
+
+            if (isController()) {
+                int totalBlocks = getTotalTankSize();
+                float totalVolumeLitres = totalBlocks * 1000.0f;
+
+                int nodeId = data.store().resolve(this.nodeHandle);
+                if (nodeId == FluidNodeStore.INVALID) {
+                    nodeId = data.store().create(totalVolumeLitres, cute.ame.celsius.Core.Thermal.Ambient.of(serverLevel).temperatureK());
+                    this.nodeHandle = data.store().handle(nodeId);
+                } else {
+                    data.store().setVolume(nodeId, totalVolumeLitres);
+                    data.touch(nodeId);
+                }
+                data.graph().invalidate();
+            } else {
+                if (this.nodeHandle != -1L) {
+                    int oldNodeId = data.store().resolve(this.nodeHandle);
+                    if (oldNodeId != FluidNodeStore.INVALID) {
+                        data.store().destroy(oldNodeId);
+                    }
+                    this.nodeHandle = -1L;
+                }
+            }
+        }
+
         onFluidStackChanged(tankInventory.getFluid());
         refreshCapabilities();
         setChanged();
@@ -680,18 +983,34 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
         return data;
     }
 
-    public List<CarbonElectrodeBlockEntity> getAttachedElectrodes() {
-        List<CarbonElectrodeBlockEntity> electrodes = new ArrayList<>();
-        if (level == null) return electrodes;
+    public List<BlockPos> getElectrodePositions() {
+        List<BlockPos> positions = new ArrayList<>();
+        if (level == null) return positions;
         ChemicalVatBlockEntity controllerBE = getControllerBE();
-        if (controllerBE == null) return electrodes;
+        if (controllerBE == null) return positions;
 
         for (int x = 0; x < controllerBE.width; x++) {
             for (int z = 0; z < controllerBE.width; z++) {
                 BlockPos abovePos = controllerBE.worldPosition.offset(x, controllerBE.height, z);
-                if (level.getBlockEntity(abovePos) instanceof CarbonElectrodeBlockEntity electrode) {
-                    electrodes.add(electrode);
+                if (level.getBlockState(abovePos).getBlock() instanceof CarbonElectrodeBlock) {
+                    positions.add(abovePos);
                 }
+            }
+        }
+        return positions;
+    }
+
+    public int getElectrodeTerminalIndex(BlockPos electrodePos) {
+        List<BlockPos> positions = getElectrodePositions();
+        return positions.indexOf(electrodePos);
+    }
+
+    public List<CarbonElectrodeBlockEntity> getAttachedElectrodes() {
+        List<CarbonElectrodeBlockEntity> electrodes = new ArrayList<>();
+        if (level == null) return electrodes;
+        for (BlockPos pos : getElectrodePositions()) {
+            if (level.getBlockEntity(pos) instanceof CarbonElectrodeBlockEntity electrode) {
+                electrodes.add(electrode);
             }
         }
         return electrodes;
@@ -747,12 +1066,49 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
         if (!isController()) {
             return;
         }
-        circuitBuilder.setTerminalCount(2);
-        if (hasElectrode(ElectrodeType.ANODE) && hasElectrode(ElectrodeType.CATHODE)) {
-            float r = calculateElectrolyteResistance();
-            this.electrolysisWire = circuitBuilder.connect(r, circuitBuilder.terminalNode(0), circuitBuilder.terminalNode(1));
+        if (anodeWires == null) {
+            anodeWires = new ArrayList<>();
         } else {
-            this.electrolysisWire = null;
+            anodeWires.clear();
+        }
+        if (cathodeWires == null) {
+            cathodeWires = new ArrayList<>();
+        } else {
+            cathodeWires.clear();
+        }
+
+        List<BlockPos> electrodePositions = getElectrodePositions();
+        circuitBuilder.setTerminalCount(electrodePositions.size());
+
+        List<Integer> anodeIndices = new ArrayList<>();
+        List<Integer> cathodeIndices = new ArrayList<>();
+        if (level != null) {
+            for (int i = 0; i < electrodePositions.size(); i++) {
+                BlockState state = level.getBlockState(electrodePositions.get(i));
+                if (state.hasProperty(CarbonElectrodeBlock.TYPE)) {
+                    if (state.getValue(CarbonElectrodeBlock.TYPE) == ElectrodeType.ANODE) {
+                        anodeIndices.add(i);
+                    } else {
+                        cathodeIndices.add(i);
+                    }
+                }
+            }
+        }
+
+        if (!anodeIndices.isEmpty() && !cathodeIndices.isEmpty()) {
+            FloatingNode electrolyteNode = circuitBuilder.addInternalNode();
+            float baseResistance = calculateElectrolyteResistance();
+            float rAnode = Math.max(0.05f, (baseResistance * 0.5f) * anodeIndices.size());
+            float rCathode = Math.max(0.05f, (baseResistance * 0.5f) * cathodeIndices.size());
+
+            for (int anodeIdx : anodeIndices) {
+                ElectricWire wire = circuitBuilder.connect(rAnode, circuitBuilder.terminalNode(anodeIdx), electrolyteNode);
+                anodeWires.add(wire);
+            }
+            for (int cathodeIdx : cathodeIndices) {
+                ElectricWire wire = circuitBuilder.connect(rCathode, electrolyteNode, circuitBuilder.terminalNode(cathodeIdx));
+                cathodeWires.add(wire);
+            }
         }
     }
 
@@ -785,9 +1141,9 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
                     ChemicalSpecies species = ModChemicals.REGISTRY.get(entry.getKey());
                     String name = species != null ? species.symbol() : entry.getKey().getPath();
                     tooltip.add(Component.literal(" • ")
-                            .withStyle(ChatFormatting.DARK_GRAY)
-                            .append(Component.literal(name).withStyle(ChatFormatting.WHITE))
-                            .append(Component.literal(String.format(": %.3f mol/L", entry.getValue())).withStyle(ChatFormatting.AQUA)));
+                    .withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal(name).withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal(String.format(": %.3f mol/L", entry.getValue())).withStyle(ChatFormatting.AQUA)));
                 }
                 tooltip.add(Component.literal("Temperature: ")
                         .withStyle(ChatFormatting.GRAY)
@@ -812,6 +1168,27 @@ public class ChemicalVatBlockEntity extends ElectricBlockEntity implements IHave
                     .withStyle(ChatFormatting.DARK_GRAY)
                     .append(Component.literal("Power: ").withStyle(ChatFormatting.GRAY))
                     .append(Component.literal(String.format("%.2f W", power)).withStyle(ChatFormatting.GREEN)));
+            added = true;
+        }
+
+        if (controllerBE.clientGasMoles > 0.001f || controllerBE.clientGasPressure > 0.001f) {
+            tooltip.add(Component.literal("Gas Chamber:").withStyle(ChatFormatting.GOLD));
+            tooltip.add(Component.literal(" • ")
+                    .withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal("Pressure: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(String.format("%.2f kPa (%.3f atm)", controllerBE.clientGasPressure * 101.325f, controllerBE.clientGasPressure))
+                            .withStyle(ChatFormatting.AQUA)));
+            tooltip.add(Component.literal(" • ")
+                    .withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal("Total Gas: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(String.format("%.3f mol", controllerBE.clientGasMoles))
+                            .withStyle(ChatFormatting.YELLOW)));
+            for (Map.Entry<String, Float> entry : controllerBE.clientGasSpecies.entrySet()) {
+                tooltip.add(Component.literal("   - ")
+                        .withStyle(ChatFormatting.DARK_GRAY)
+                        .append(Component.literal(entry.getKey().toUpperCase(Locale.ROOT)).withStyle(ChatFormatting.WHITE))
+                        .append(Component.literal(String.format(": %.3f mol", entry.getValue())).withStyle(ChatFormatting.GRAY)));
+            }
             added = true;
         }
 

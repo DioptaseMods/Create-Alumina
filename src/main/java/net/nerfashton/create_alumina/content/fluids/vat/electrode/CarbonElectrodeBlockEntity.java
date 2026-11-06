@@ -44,17 +44,17 @@ public class CarbonElectrodeBlockEntity extends SmartBlockEntity implements IEle
         return null;
     }
 
-    public int getTerminalIndex() {
-        BlockState state = getBlockState();
-        if (state.hasProperty(CarbonElectrodeBlock.TYPE)) {
-            return state.getValue(CarbonElectrodeBlock.TYPE).getTerminalIndex();
+    public int getVatTerminalIndex() {
+        ChemicalVatBlockEntity controller = getVatControllerBE();
+        if (controller != null) {
+            return controller.getElectrodeTerminalIndex(worldPosition);
         }
-        return 0;
+        return -1;
     }
 
     @Override
     public void addBehaviours(List<BlockEntityBehaviour> behaviours) {
-        electricBehaviour = new ElectrodeElectricBehaviour(this, this::getVatControllerPos, this::getTerminalIndex);
+        electricBehaviour = new ElectrodeElectricBehaviour(this, this::getVatControllerPos);
         behaviours.add(electricBehaviour);
     }
 
@@ -67,6 +67,22 @@ public class CarbonElectrodeBlockEntity extends SmartBlockEntity implements IEle
             electricBehaviour.breakConnections();
             electricBehaviour.refreshEndpoints();
             notifyUpdate();
+        }
+    }
+
+    @Override
+    public void remove() {
+        super.remove();
+        if (electricBehaviour != null) {
+            electricBehaviour.remove();
+        }
+    }
+
+    @Override
+    public void destroy() {
+        super.destroy();
+        if (electricBehaviour != null) {
+            electricBehaviour.remove();
         }
     }
 

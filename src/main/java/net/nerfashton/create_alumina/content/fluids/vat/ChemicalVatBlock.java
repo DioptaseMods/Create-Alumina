@@ -9,6 +9,7 @@ import com.simibubi.create.foundation.block.IBE;
 import com.simibubi.create.foundation.blockEntity.ComparatorUtil;
 import com.simibubi.create.foundation.fluid.FluidHelper;
 import com.simibubi.create.foundation.fluid.FluidHelper.FluidExchange;
+import cute.ame.celsius.Fluid.Block.IFluidVesselBlock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.BlockParticleOption;
@@ -18,11 +19,13 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
@@ -45,7 +48,7 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.nerfashton.create_alumina.registry.CABlockEntities;
 
-public class ChemicalVatBlock extends Block implements IWrenchable, IBE<ChemicalVatBlockEntity> {
+public class ChemicalVatBlock extends Block implements IFluidVesselBlock, IWrenchable, IBE<ChemicalVatBlockEntity> {
 
     public static final BooleanProperty TOP = BooleanProperty.create("top");
     public static final BooleanProperty BOTTOM = BooleanProperty.create("bottom");
@@ -55,6 +58,33 @@ public class ChemicalVatBlock extends Block implements IWrenchable, IBE<Chemical
         registerDefaultState(defaultBlockState()
                 .setValue(TOP, true)
                 .setValue(BOTTOM, true));
+    }
+
+    // --- IFluidVesselBlock implementation ---
+
+    @Override
+    public float getVolumeLitres() {
+        return 1000.0f;
+    }
+
+    @Override
+    public boolean merges() {
+        return false;
+    }
+
+    @Override
+    public float getConductance() {
+        return 1.0f;
+    }
+
+    @Override
+    public float getNominalBurstPressure() {
+        return 16375049.0f;
+    }
+
+    @Override
+    public int ports(BlockState state) {
+        return IFluidVesselBlock.ALL_PORTS;
     }
 
     public static boolean isVat(BlockState state) {
@@ -103,6 +133,18 @@ public class ChemicalVatBlock extends Block implements IWrenchable, IBE<Chemical
     @Override
     protected boolean skipRendering(BlockState state, BlockState adjacentState, Direction direction) {
         return super.skipRendering(state, adjacentState, direction);
+    }
+
+    @Override
+    public InteractionResult onWrenched(BlockState state, UseOnContext context) {
+        if (context.getClickedFace().getAxis().isVertical()) {
+            BlockEntity be = context.getLevel().getBlockEntity(context.getClickedPos());
+            if (be instanceof ChemicalVatBlockEntity vat) {
+                ConnectivityHandler.splitMulti(vat);
+                vat.removeController(true);
+            }
+        }
+        return IWrenchable.super.onWrenched(state, context);
     }
 
     @Override
@@ -186,6 +228,9 @@ public class ChemicalVatBlock extends Block implements IWrenchable, IBE<Chemical
 
     @Override
     public void onRemove(BlockState state, Level world, BlockPos pos, BlockState newState, boolean isMoving) {
+        if (!state.is(newState.getBlock())) {
+            CAVesselNodes.onRemoved(world, pos, state);
+        }
         if (state.hasBlockEntity() && (state.getBlock() != newState.getBlock() || !newState.hasBlockEntity())) {
             BlockEntity be = world.getBlockEntity(pos);
             if (!(be instanceof ChemicalVatBlockEntity vatBE))
